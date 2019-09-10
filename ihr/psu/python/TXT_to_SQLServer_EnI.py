@@ -58,20 +58,18 @@ rows_to_insert = []
 # Get Files
 def get_files(search_pattern):
     list_reports = glob.glob(str(sourcePath).format("{}".format(search_pattern)))
-    return max(list_reports, key=os.path.getctime)
+    latest_file = max(list_reports, key=os.path.getctime)
+    latest_file_name_ext = os.path.basename(latest_file)
+    return latest_file, latest_file_name_ext
 
 
 # Read in worksheets
-def read_in_files(latest_file):
-    latest_file_name_ext = os.path.basename(latest_file)
+def read_in_files(latest_file, latest_file_name_ext):
     latest_file_name, latest_file_extension = os.path.splitext(latest_file_name_ext)
     print('Reading in file {}'.format(latest_file))
     with open(latest_file, "r", newline='') as eni:
         global df_eni
-        df_eni = pd.read_csv(eni,
-                             dtype=str,
-                             sep='\t',
-                             )
+        df_eni = pd.read_csv(eni, dtype=str, sep='\t')
         df_eni.columns = df_eni.columns.str.strip()   # remove whitespace around column names
         df_eni = df_eni.astype(str)
         df_eni = df_eni.applymap(str.strip)           # remove whitespace around values
@@ -91,12 +89,13 @@ def runquery(querystr):
         pass
 
 
-def run_insert_query(rowcount, rowlist, ins_query, context, rowlimit):
+def run_insert_query(rowcount, rowlist, latest_file_name_ext, ins_query, context, rowlimit):
     if (rowcount == 0):
         global rows_to_insert
-        rows_to_insert = rowlist[0:rowlimit]  # len(nonaco_rows_list)
+        rows_to_insert = rowlist[0:rowlimit]
         for r in range(len(rows_to_insert)):
             rows_to_insert[r].append(dt.datetime.now())
+            rows_to_insert[r].append(latest_file_name_ext)
         print(f"Executing {context} bulk insert...")
         cursor.fast_executemany = True
         cursor.executemany(ins_query, rows_to_insert)
@@ -141,7 +140,8 @@ CREATE TABLE {destination_table_nonaco} (   -- | Final table data types:
 , RCT                   varchar(10)    NULL -- | varchar(1)
 , chf                   varchar(10)    NULL -- | varchar(1)
 , esrd                  varchar(10)    NULL -- | varchar(1)
-, date_ingested         varchar(75)    NULL -- |
+, date_ingested         varchar(30)    NULL -- |
+, FileName              varchar(255)   NULL -- |
 )"""
 
 
@@ -149,24 +149,25 @@ CREATE TABLE {destination_table_nonaco} (   -- | Final table data types:
 qdrop_aco = f"""DROP TABLE IF EXISTS {destination_table_aco}"""
 # `date_ingested` to be calculated upon ingestion
 qcreate_aco = f"""
-CREATE TABLE {destination_table_aco} ( -- | Final table data types:
-  MBR_ID           varchar(50)    NULL -- | -----------------------
-, referral         varchar(20)    NULL -- |
-, condition_count  varchar(20)    NULL -- |
-, pred_flag        varchar(10)    NULL -- | varchar(1)
-, year_mo          varchar(10)    NULL -- |
-, MKT_RLLP_NM      varchar(255)   NULL -- |
-, PRSPCTV_RISK     varchar(10)    NULL -- |
-, pred             varchar(20)    NULL -- |
-, CUST_SEG_NBR     varchar(50)    NULL -- | varchar(10)
-, chf              varchar(10)    NULL -- | varchar(1)
-, esrd             varchar(10)    NULL -- | varchar(1)
-, indv_id          varchar(50)    NULL -- |
-, group_nm         varchar(255)   NULL -- |
-, ACO              varchar(10)    NULL -- | varchar(1)
-, Exchange_ind     varchar(10)    NULL -- | varchar(1)
-, aco_flag         varchar(10)    NULL -- | varchar(1)
-, date_ingested    varchar(30)    NULL -- | varchar(10)
+CREATE TABLE {destination_table_aco} ( --  | Final table data types:
+  MBR_ID           varchar(50)    NULL --  | -----------------------
+, referral         varchar(20)    NULL --  |
+, condition_count  varchar(20)    NULL --  |
+, pred_flag        varchar(10)    NULL --> | varchar(1)
+, year_mo          varchar(10)    NULL --  |
+, MKT_RLLP_NM      varchar(255)   NULL --  |
+, PRSPCTV_RISK     varchar(10)    NULL --  |
+, pred             varchar(20)    NULL --  |
+, CUST_SEG_NBR     varchar(50)    NULL --> | varchar(10)
+, chf              varchar(10)    NULL --> | varchar(1)
+, esrd             varchar(10)    NULL --> | varchar(1)
+, indv_id          varchar(50)    NULL --  |
+, group_nm         varchar(255)   NULL --  |
+, ACO              varchar(10)    NULL --> | varchar(1)
+, Exchange_ind     varchar(10)    NULL --> | varchar(1)
+, aco_flag         varchar(10)    NULL --> | varchar(1)
+, date_ingested    varchar(30)    NULL --> | varchar(10)
+, FileName         varchar(255)   NULL --  |
 )"""
 
 
@@ -181,26 +182,28 @@ CREATE TABLE {destination_table_aco} ( -- | Final table data types:
 #
 
 # Non-ACO      - Get latest eni file
-latest_nonaco = get_files("EnI_PSU*.txt")
+latest_nonaco, latest_nonaco_name_ext = get_files("EnI_PSU*.txt")
 cols_to_update_nonaco, nonaco_rows_list = read_in_files(latest_nonaco)
 cols_to_update_nonaco.append("date_ingested")
+cols_to_update_nonaco.append("FileName")
 
 # ACO  - Get latest aco file
-latest_aco    = get_files("EnI_ACO_PSU*.txt")
-cols_to_update_aco, aco_rows_list       = read_in_files(latest_aco)
+latest_aco, latest_aco_name_ext = get_files("EnI_ACO_PSU*.txt")
+cols_to_update_aco, aco_rows_list = read_in_files(latest_aco)
 cols_to_update_aco.append("date_ingested")
+cols_to_update_aco.append("FileName")
 
 
 # Generate series of parameters for INSERT statements
 # NonACO
 param_builder_nonaco = "?"
 for i in range(len(cols_to_update_nonaco) - 1):  # minus 1 since it initialized with 1
-    param_builder_nonaco += ", ?"  # 22 items total
+    param_builder_nonaco += ", ?"  # 23 items total
 
 # ACO
 param_builder_aco = "?"
 for i in range(len(cols_to_update_aco) - 1):  # minus 1 since it initialized with 1
-    param_builder_aco += ", ?"  # 17 items total
+    param_builder_aco += ", ?"  # 18 items total
 
 
 # Build INSERT statements
@@ -256,6 +259,7 @@ start_time_nonaco = time.time()  # START TIMER
 rows_to_insert.clear()
 run_insert_query(rowcount_nonaco_pre,
                  nonaco_rows_list,
+                 latest_nonaco_name_ext,
                  qinsert_nonaco,
                  "non-ACO",
                  total_rows_to_insert_nonaco)
@@ -304,6 +308,7 @@ start_time_aco = time.time()  # START TIMER
 rows_to_insert.clear()
 run_insert_query(rowcount_aco_pre,
                  aco_rows_list,
+                 latest_aco_name_ext,
                  qinsert_aco,
                  "ACO",
                  total_rows_to_insert_aco)
@@ -332,5 +337,5 @@ print('E&I (ACO) job completed | {} rows failed to insert.'.format(row_diff_aco)
 
 sys.exit('Both files imported:\n'
          ' - {} non-ACO rows failed to insert.\n'
-         ' - {} ACO rows failed to insert'
+         ' - {} ACO rows failed to insert.'
          .format(row_diff_nonaco, row_diff_aco))

@@ -115,7 +115,7 @@ CREATE TABLE {destination_table} (
   , TCM_eng                        varchar(20)    NULL -- int
   , HRCM_eng                       varchar(20)    NULL -- int
   , AI_eng                         varchar(20)    NULL -- int
---   , chronic                        varchar(1000)  NULL  -- causing too many problems due to special characters
+-- , chronic                        varchar(1000)  NULL -- very long field, not needed
   , institutional                  varchar(1)     NULL
   , agecat                         varchar(15)    NULL
   , hicn_old                       varchar(50)    NULL
@@ -124,6 +124,7 @@ CREATE TABLE {destination_table} (
   , case_manager                   varchar(50)    NULL
   , ANY_OPTUM_PGM                  varchar(20)    NULL -- int
   , date_ingested                  varchar(30)    NULL
+  , FileName                       varchar(255)   NULL -- source file name
 )"""
 
 
@@ -133,6 +134,7 @@ for col in range(sheet.ncols):
     cols_to_update.append(sheet.cell_value(0, col))
 
 cols_to_update.append("date_ingested")
+cols_to_update.append("FileName")
 # REVIEW:  Modify below if columns need to be excluded:
 cols_to_update.remove("chronic")
 
@@ -149,7 +151,7 @@ qinsert = f"""
 INSERT INTO {destination_table}
 ( {strofcols} )
 VALUES ( {param_builder} )
-"""  # print(qinsert)
+"""                                       # print(qinsert)
 
 
 # Open connection/cursor
@@ -174,25 +176,24 @@ for col in range(sheet.ncols):
 
 # Execute INSERTS
 total_rows_to_insert = sheet.nrows - 1  # Minus header row
-start_time = time.time()  # START TIMER
 
+start_time = time.time()  # START TIMER
 list_of_lists = []
 
 # REVIEW:  Modify this if columns need to be excluded:
 if (rowcount_pre[0] == 0):
     for r in range(1, sheet.nrows):
-        global list_values
+        global list_values                                    # (global for debugging only)
         list_values = []
         for index, column_name in enumerate(xlsx_header_row):
             # REVIEW:  Exclude columns from iteration:
             if index == xlsx_header_row.index('chronic'):
                 continue
-            if sheet.cell(r, index).ctype == 3:   # 3 means 'xldate'
+            if sheet.cell(r, index).ctype == 3:               # 3 means 'xldate'
                 datenumber = sheet.cell(r, index).value
-                # book_datemode => which numbering system for dates (0 or 1):
+                # book_datemode = 0 --> The file's Excel numbering system for dates
                 year, month, day, hour, minute, second = xlrd.xldate_as_tuple(datenumber, book_datemode)
-                global cell_value
-                cell_value = dt.date(year, month, day)      # Store as python date format
+                cell_value = dt.date(year, month, day)
                 list_values.append(cell_value)
                 continue
             else:
@@ -200,6 +201,7 @@ if (rowcount_pre[0] == 0):
                 list_values.append(cell_value)
                 continue
         list_values.append(dt.datetime.now())
+        list_values.append(latestReportNameExt)
         list_of_lists.append(list_values)
     print("Parameter sequencing completed...")
     cursor.fast_executemany = True

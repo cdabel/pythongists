@@ -51,12 +51,13 @@ Trusted_Connection=yes;\
 # Get Files
 def get_files(search_pattern):
     list_reports = glob.glob(str(sourcePath).format("{}".format(search_pattern)))
-    return max(list_reports, key=os.path.getctime)
+    latest_file = max(list_reports, key=os.path.getctime)
+    latest_file_name_ext = os.path.basename(latest_file)
+    return latest_file, latest_file_name_ext
 
 
 # Read in worksheets
-def read_in_files(latest_file):
-    latest_file_name_ext = os.path.basename(latest_file)
+def read_in_files(latest_file, latest_file_name_ext):
     latest_file_name, latest_file_extension = os.path.splitext(latest_file_name_ext)
     print('Reading in file {}'.format(latest_file))
     book = xlrd.open_workbook(latest_file)
@@ -81,7 +82,7 @@ def get_file_origin(sheet):
         return 'mcd'
 
 
-def run_insert_query(sheet):
+def run_insert_query(sheet, latest_file_name_ext):
     mcr_or_mcd = get_file_origin(sheet)
     # Extract list of column headers (headers are the same in MCR and MCD)
     xlsx_header_row = []
@@ -108,6 +109,7 @@ def run_insert_query(sheet):
                     continue
             list_values.append(mcr_or_mcd)
             list_values.append(dt.datetime.now())
+            list_values.append(latest_file_name_ext)
             list_of_lists.append(list_values)
         print("Parameter sequencing completed...")
         cursor.fast_executemany = True
@@ -118,10 +120,13 @@ def run_insert_query(sheet):
         sys.exit()
 
 
-latest_mcr = get_files("mcr*.xlsx")  # MCR - Get latest mcr list
-latest_mcd = get_files("mcd*.xlsx")  # MCD - Get latest mcd list
-mcr_sheet = read_in_files(latest_mcr)  # MCR - Read in worksheet
-mcd_sheet = read_in_files(latest_mcd)  # MCD - Read in worksheet
+# MCR - Get latest mcr list / Read in mcr worksheet
+latest_mcr, latest_mcr_name_ext = get_files("mcr*.xlsx")
+mcr_sheet = read_in_files(latest_mcr, latest_mcr_name_ext)
+
+# MCD - Get latest mcd list / Read in mcd worksheet
+latest_mcd, latest_mcd_name_ext = get_files("mcd*.xlsx")
+mcd_sheet = read_in_files(latest_mcd, latest_mcd_name_ext)
 
 
 # Extract list of column headers (headers are the same in MCR and MCD)
@@ -131,6 +136,7 @@ for col in range(mcd_sheet.ncols):
 
 cols_to_update.append("file_origin")
 cols_to_update.append("date_ingested")
+cols_to_update.append("FileName")
 
 
 # SQL QUERIES
@@ -148,12 +154,13 @@ CREATE TABLE {destination_table} (
   , Subscriber_ID       varchar(50)    NULL
   , file_origin         varchar(3)     NULL
   , date_ingested       varchar(30)    NULL
+  , FileName            varchar(255)   NULL
 )"""
 
 
 # Generate series of parameters for INSERT statement
-param_builder = "?"                       # Initialize w/ two representing new columns (`file_origin` & `datetime_ingested`)
-for i in range(len(cols_to_update) - 1):  # minus 1 since param_builder initialized with 1
+param_builder = "?"
+for i in range(len(cols_to_update) - 1):  # minus 1 since param_builder initializes with 1
     param_builder += ", ?"                # print(param_builder)
 
 
@@ -163,7 +170,7 @@ qinsert = f"""
 INSERT INTO {destination_table}
 ( {strofcols} )
 VALUES ( {param_builder} )
-"""  # print(qinsert)
+"""                                       # print(qinsert)
 
 
 # Open connection/cursor
@@ -184,14 +191,15 @@ rowcount_pre = cursor.fetchone()
 
 # Execute INSERTS
 total_rows_to_insert = (mcr_sheet.nrows + mcd_sheet.nrows) - 2  # Minus header rows
-start_time = time.time()  # START TIMER
 
-run_insert_query(mcr_sheet)  # mcr inserts
+# START TIMER
+start_time = time.time()
+run_insert_query(mcr_sheet, latest_mcr_name_ext)  # mcr inserts
 conn.commit()
-run_insert_query(mcd_sheet)  # mcd inserts
+run_insert_query(mcd_sheet, latest_mcd_name_ext)  # mcd inserts
 conn.commit()
-
-end_time = time.time()  # END TIMER
+end_time = time.time()
+# END TIMER
 
 elapsed_time = str(round(end_time - start_time, 1))
 print('INSERTS Completed in {} seconds'.format(elapsed_time))
