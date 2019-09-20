@@ -1,5 +1,5 @@
 WITH
-cte_source AS 
+  cte_source AS 
 (
      WITH
        cte_ei_aco AS
