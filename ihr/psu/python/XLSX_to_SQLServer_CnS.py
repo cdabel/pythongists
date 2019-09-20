@@ -148,10 +148,16 @@ CREATE TABLE {destination_table} (
   , Member_Key          varchar(50)    NULL
   , COMPANY_DESC        varchar(50)    NULL
   , pred_model          varchar(50)    NULL
+  , pred_model_cutoff   varchar(50)    NULL
+  , pred_model_flag     varchar(1)     NULL
   , Member_First_Name   varchar(255)   NULL
   , Member_Last_Name    varchar(255)   NULL
   , Member_DOB          varchar(10)    NULL
   , Subscriber_ID       varchar(50)    NULL
+  , Member_City         varchar(50)    NULL
+  , Member_State        varchar(10)    NULL
+  , Member_Zip          varchar(10)    NULL
+  , HCFA_CNTY_NM        varchar(50)    NULL
   , file_origin         varchar(3)     NULL
   , date_ingested       varchar(30)    NULL
   , FileName            varchar(255)   NULL
