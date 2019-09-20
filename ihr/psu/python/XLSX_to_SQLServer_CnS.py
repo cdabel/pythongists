@@ -82,6 +82,8 @@ def get_file_origin(sheet):
         return 'mcd'
 
 
+# This function checks if rowcount of destination table equals zero before
+# generating and inserting lists.
 def run_insert_query(sheet, latest_file_name_ext):
     mcr_or_mcd = get_file_origin(sheet)
     # Extract list of column headers (headers are the same in MCR and MCD)

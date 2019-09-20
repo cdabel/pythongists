@@ -115,7 +115,7 @@ CREATE TABLE {destination_table} (
   , TCM_eng                        varchar(20)    NULL -- int
   , HRCM_eng                       varchar(20)    NULL -- int
   , AI_eng                         varchar(20)    NULL -- int
--- , chronic                        varchar(1000)  NULL -- very long field, not needed
+  , chronic                        varchar(2000)  NULL
   , institutional                  varchar(1)     NULL
   , agecat                         varchar(15)    NULL
   , hicn_old                       varchar(50)    NULL
@@ -136,7 +136,7 @@ for col in range(sheet.ncols):
 cols_to_update.append("date_ingested")
 cols_to_update.append("FileName")
 # REVIEW:  Modify below if columns need to be excluded:
-cols_to_update.remove("chronic")
+# cols_to_update.remove("chronic")
 
 
 # Generate series of parameters for INSERT statement
@@ -186,9 +186,9 @@ if (rowcount_pre[0] == 0):
         global list_values                                    # (global for debugging only)
         list_values = []
         for index, column_name in enumerate(xlsx_header_row):
-            # REVIEW:  Exclude columns from iteration:
-            if index == xlsx_header_row.index('chronic'):
-                continue
+            # # REVIEW:  Exclude columns from iteration:
+            # if index == xlsx_header_row.index('chronic'):
+            #     continue
             if sheet.cell(r, index).ctype == 3:               # 3 means 'xldate'
                 datenumber = sheet.cell(r, index).value
                 # book_datemode = 0 --> The file's Excel numbering system for dates

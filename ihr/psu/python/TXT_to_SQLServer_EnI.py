@@ -183,13 +183,13 @@ CREATE TABLE {destination_table_aco} ( --  | Final table data types:
 
 # Non-ACO      - Get latest eni file
 latest_nonaco, latest_nonaco_name_ext = get_files("EnI_PSU*.txt")
-cols_to_update_nonaco, nonaco_rows_list = read_in_files(latest_nonaco)
+cols_to_update_nonaco, nonaco_rows_list = read_in_files(latest_nonaco, latest_nonaco_name_ext)
 cols_to_update_nonaco.append("date_ingested")
 cols_to_update_nonaco.append("FileName")
 
 # ACO  - Get latest aco file
 latest_aco, latest_aco_name_ext = get_files("EnI_ACO_PSU*.txt")
-cols_to_update_aco, aco_rows_list = read_in_files(latest_aco)
+cols_to_update_aco, aco_rows_list = read_in_files(latest_aco, latest_aco_name_ext)
 cols_to_update_aco.append("date_ingested")
 cols_to_update_aco.append("FileName")
 
