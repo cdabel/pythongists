@@ -198,7 +198,7 @@ rowcount_pre = cursor.fetchone()
 
 
 # Execute INSERTS
-total_rows_to_insert = (mcr_sheet.nrows + mcd_sheet.nrows) - 2  # Minus header rows
+total_rows_to_insert = (mcr_sheet.nrows + mcd_sheet.nrows) - 2  # Minus 2 header rows
 
 # START TIMER
 start_time = time.time()
