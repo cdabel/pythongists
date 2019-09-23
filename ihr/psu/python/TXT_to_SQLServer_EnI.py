@@ -267,7 +267,7 @@ conn.commit()
 
 end_time_nonaco = time.time()  # END TIMER
 elapsed_time_nonaco = str(round(end_time_nonaco - start_time_nonaco, 1))
-print('Non-ACO: INSERTS Completed in {} seconds'.format(elapsed_time_nonaco))
+print('Non-ACO: {} INSERTS Completed in {} seconds'.format(total_rows_to_insert_nonaco, elapsed_time_nonaco))
 
 # Get final rowcounts of target table
 cursor.execute(f"SELECT count(*) FROM {destination_table_nonaco}")
@@ -316,7 +316,7 @@ conn.commit()
 
 end_time_aco = time.time()  # END TIMER
 elapsed_time_aco = str(round(end_time_aco - start_time_aco, 1))
-print('ACO: INSERTS Completed in {} seconds'.format(elapsed_time_aco))
+print('ACO: {} INSERTS Completed in {} seconds'.format(total_rows_to_insert_aco, elapsed_time_aco))
 
 # Get final rowcounts of target table
 cursor.execute(f"SELECT count(*) FROM {destination_table_aco}")

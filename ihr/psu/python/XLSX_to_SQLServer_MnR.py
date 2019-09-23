@@ -214,6 +214,9 @@ else:
 conn.commit()
 
 end_time = time.time()  # END TIMER
+elapsed_time = end_time - start_time
+print('{} INSERTS Completed in {} seconds'.format(total_rows_to_insert, elapsed_time))
+
 # Ensure all rows imported successfully
 cursor.execute(f"SELECT count(*) FROM {destination_table}")
 rowcount_post = cursor.fetchone()

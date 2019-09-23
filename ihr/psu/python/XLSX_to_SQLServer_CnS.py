@@ -210,7 +210,7 @@ end_time = time.time()
 # END TIMER
 
 elapsed_time = str(round(end_time - start_time, 1))
-print('INSERTS Completed in {} seconds'.format(elapsed_time))
+print('{} INSERTS Completed in {} seconds'.format(total_rows_to_insert, elapsed_time))
 
 # Ensure all rows imported successfully
 cursor.execute(f"SELECT count(*) FROM {destination_table}")
