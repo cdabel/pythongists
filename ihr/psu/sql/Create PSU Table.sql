@@ -2,11 +2,7 @@ USE [IHR_RAP];
 GO
 
 
-DROP TABLE [IHR_RAP].[Member].[PSU_Combined]
-;
-
-
-CREATE TABLE [IHR_RAP].[Member].[PSU_Combined] 
+CREATE TABLE [IHR_RAP].[Member].[SuperUser_All_LOBs] 
 (   Primary_Key             BIGINT IDENTITY(10000000000, 1)  NOT NULL  PRIMARY KEY
   , Member_Key              VARCHAR(32)                      NOT NULL
   , LineOfBusiness          VARCHAR(3)                       NOT NULL
@@ -19,7 +15,7 @@ CREATE TABLE [IHR_RAP].[Member].[PSU_Combined]
   , Indv_ID                 VARCHAR(50)                          NULL
   , CS_MemberKey            VARCHAR(50)                          NULL
   , CS_CompanyState         VARCHAR(50)                          NULL
-  , CS_file_origin          VARCHAR(3)                           NULL
+  , CS_file_origin          VARCHAR(20)                          NULL
   , MemberGender            VARCHAR(3)                           NULL
   , HCE_PredictiveScore     DECIMAL(10,4)                        NULL
   , Is_PSU                  BIT                                  NULL
@@ -50,16 +46,15 @@ CREATE TABLE [IHR_RAP].[Member].[PSU_Combined]
   , AI_eng                  INT                                  NULL
   , Any_Optum_Program       INT                                  NULL
   , RCT                     INT                                  NULL
-  , Load_Date_Py            DATE                                 NULL
+  , Load_Date_Py            DATETIME                             NULL
   , CountOf_LOB             INT                                  NULL
   , CountOfFiles            INT                                  NULL
   , FileName                VARCHAR(255)                         NULL
-  , InsertDate              DATE                                 NULL
-  , LastModifiedDate        DATE                                 NULL
-  , DropDate                DATE                                 NULL
+  , InsertDate              DATETIME                             NULL
+  , LastModifiedDate        DATETIME                             NULL
+  , DropDate                DATETIME                             NULL
   , SuperUser_Status        VARCHAR(40)                          NULL
   , SuperUser_SubStatus     VARCHAR(40)                          NULL
-
   -- This creates a non-clustered index on (Member_ID)
   , INDEX IX_PSU_Combined_Member_ID NONCLUSTERED (Member_ID)
 )

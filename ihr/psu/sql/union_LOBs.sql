@@ -1,28 +1,22 @@
 ---- ================================================
----- Template generated from Template Explorer using:
----- Create Procedure (New Menu).SQL
-----
----- Use the Specify Values for Template Parameters 
----- command (Ctrl-Shift-M) to fill in the parameter 
----- values below.
-----
----- This block of comments will not be included in
----- the definition of the procedure.
----- ================================================
---SET ANSI_NULLS ON
---GO
---SET QUOTED_IDENTIFIER ON
---GO
----- =============================================
----- Author:         Chris Dabel
----- Create date:  9/20/2019
----- Description:    Union Super Users from all 3 LOBs and Merge to [member].[superuser_combined]
----- =============================================
---USE IHR_RAP
---GO
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+---- ==========================================================================================
+---- ==========================================================================================
+---- Author:             Chris Dabel
+---- Create date:        9/20/2019
+---- Description:        Union Super Users from all 3 LOBs and Merge to [member].[SuperUser_all_LOBs]
+---- Store Proc Name:    sp_merge_superusers
+---- ==========================================================================================
+---- ==========================================================================================
 
---CREATE PROCEDURE [dbo].[merge_superusers]
---AS
+USE IHR_RAP;
+GO
+
+CREATE PROCEDURE [dbo].[sp_merge_superusers]
+AS
 WITH
   cte_ei_aco AS
 (
@@ -98,8 +92,7 @@ SELECT 'E&I'                                               AS LineOfBusiness
      , NULL                                                AS CS_MemberKey
      , NULL                                                AS CS_CompanyState
      , NULL                                                AS CS_file_origin
-     , CONVERT(date, non.date_ingested)                    AS load_date_py
-     -- TODO: Uncomment below once brought into stage tables
+     , LEFT(non.date_ingested, 19)                         AS load_date_py
      , non.[FileName]                                      AS [FileName]
 --SELECT count(*)
 FROM cte_ei_dedupe_non non
@@ -156,7 +149,7 @@ SELECT DISTINCT
      , NULL                                                AS CS_MemberKey
      , NULL                                                AS CS_CompanyState
      , NULL                                                AS CS_file_origin
-     , CONVERT(date, date_ingested)                        AS load_date_py
+     , LEFT(date_ingested, 19)                             AS load_date_py  -- truncate to prevent dupes
      , [FileName]                                          AS [FileName]
 FROM [IHR_RAP].[stage].[PSU_MR_Latest]
 )
@@ -164,7 +157,7 @@ FROM [IHR_RAP].[stage].[PSU_MR_Latest]
 (
 SELECT 'C&S'                                               AS LineOfBusiness
      , FORMAT(CONVERT(date, date_ingested), 'yyyyMM')      AS YYYYMM
-     , Subscriber_ID                                       AS Member_ID
+     , Member_Key                                          AS Member_ID
      , Member_First_Name                                   AS MemberFirstName
      , Member_Last_Name                                    AS MemberLastName
      , CONVERT(date, Member_DOB)                           AS Member_DOB
@@ -185,7 +178,7 @@ SELECT 'C&S'                                               AS LineOfBusiness
      , Member_Zip                                          AS MemberZipCd
      , NULL                                                AS MemberZipPlus4Cd
      , Member_City                                         AS MemberCityName
-     , MBR_HCFA_CNTY_NM                                    AS MemberCounty
+     , HCFA_CNTY_NM                                        AS MemberCounty
      , Member_State                                        AS MemberState
      , NULL                                                AS RCT
      , NULL                                                AS MR_ContractNumber
@@ -202,8 +195,12 @@ SELECT 'C&S'                                               AS LineOfBusiness
      , NULL                                                AS Any_Optum_Program
      , Member_Key                                          AS CS_MemberKey
      , COMPANY_DESC                                        AS CS_CompanyState
-     , file_origin                                         AS CS_file_origin
-     , CONVERT(date, date_ingested)                        AS load_date_py
+     , CASE file_origin
+         WHEN 'mcd' THEN 'medicaid'
+         WHEN 'mcr' THEN 'medicare'
+         ELSE 'ZZZZZZ - ERROR'  
+       END                                                 AS CS_file_origin
+     , LEFT(date_ingested, 19)                             AS load_date_py
      , [FileName]                                          AS [FileName]
 FROM [IHR_RAP].[stage].[PSU_CS_Latest]
 )
@@ -223,11 +220,14 @@ UNION ALL
 )
 , cte_source AS
 (
-SELECT CONVERT(VARCHAR(32), HashBytes('MD5', 
-                                      CONCAT( MemberFirstName, 
-                                      MemberLastName, 
-                                      Member_DOB, 
-                                      MemberZipCd)), 2)     AS Member_Key
+SELECT CONVERT( VARCHAR(32),
+                HashBytes('MD5',
+                          CONCAT( LOWER(MemberFirstName), 
+                                  LOWER(MemberLastName), 
+                                  Member_DOB, 
+                                  MemberZipCd ) 
+                          ),
+                2 )                                         AS Member_Key
      , LineOfBusiness                                       AS LineOfBusiness
      , YYYYMM                                               AS YYYYMM
      , Member_ID                                            AS Member_ID
@@ -235,14 +235,15 @@ SELECT CONVERT(VARCHAR(32), HashBytes('MD5',
      , MemberLastName                                       AS MemberLastName
      , Member_DOB                                           AS Member_DOB
      , Subscriber_ID                                        AS Subscriber_ID
-     , NULLIF('nan', Indv_ID)                               AS Indv_ID
+     , CASE WHEN Indv_ID = 'nan' THEN NULL 
+            ELSE Indv_ID  END                               AS Indv_ID
      , CS_MemberKey                                         AS CS_MemberKey
      , CS_CompanyState                                      AS CS_CompanyState
      , CS_file_origin                                       AS CS_file_origin
      , MemberGender                                         AS MemberGender
-     , NULLIF('nan', HCE_PredictiveScore)                   AS HCE_PredictiveScore
+     , TRY_CONVERT( DECIMAL(10,4), HCE_PredictiveScore )    AS HCE_PredictiveScore -- TRY_CONVERT() is used to handle blank values
      , PredictiveFlag                                       AS Is_PSU
-     , NULLIF('nan', PredictiveCutoff)                      AS PSU_Score_Cutoff
+     , TRY_CONVERT( DECIMAL(10,4), PredictiveCutoff    )    AS PSU_Score_Cutoff    -- TRY_CONVERT() is used to handle blank values
      , ACO_Flag                                             AS ACO_Flag
      , ACO_Name                                             AS ACO_Name
      , ExchangeInd                                          AS ExchangeInd
@@ -255,7 +256,8 @@ SELECT CONVERT(VARCHAR(32), HashBytes('MD5',
      , MemberZipPlus4Cd                                     AS MemberZipPlus4Cd
      , MemberCityName                                       AS MemberCityName
      , MemberCounty                                         AS MemberCounty
-     , NULLIF('nan', Member_State)                          AS MemberState
+     , CASE WHEN MemberState = 'nan' THEN NULL 
+            ELSE MemberState  END                           AS MemberState
      , MR_ContractNumber                                    AS MR_ContractNumber
      , MR_PBP                                               AS MR_PBP
      , MR_Product                                           AS MR_Product
@@ -269,9 +271,10 @@ SELECT CONVERT(VARCHAR(32), HashBytes('MD5',
      , AI_eng                                               AS AI_eng
      , Any_Optum_Program                                    AS Any_Optum_Program
      , RCT                                                  AS RCT
-     , load_date_py                                         AS load_date_py
-     , COUNT(*) OVER ( PARTITION BY MemberFirstName,
-                                    MemberLastName,
+     -- VARCHAR to VARCHAR conversion used to prevent error when implicitly converting to datetime on insert
+     , CONVERT(VARCHAR(19), load_date_py, 120)              AS load_date_py
+     , COUNT(*) OVER ( PARTITION BY lower(MemberFirstName),
+                                    lower(MemberLastName),
                                     Member_DOB,
                                     MemberZipCd )           AS CountOf_LOB
      , 1                                                    AS CountOfFiles
@@ -287,10 +290,10 @@ FROM cte_union
      #   #  #     #  #   #   #  #
      #   #  ####  #   #   ###   ####
  */
-MERGE [IHR_RAP].[Member].[PSU_Combined]  AS target
-USING cte_source                         AS source
+MERGE [IHR_RAP].[Member].[SuperUser_All_LOBs]  AS target
+USING cte_source                               AS source
    ON ( source.Member_ID = target.[Member_ID] )
-WHEN NOT MATCHED
+WHEN NOT MATCHED 
 THEN INSERT (  Member_Key
              , LineOfBusiness
              , YYYYMM
@@ -338,7 +341,6 @@ THEN INSERT (  Member_Key
              , CountOfFiles
              , [FileName]
              , InsertDate
-             , LastModifiedDate
              , SuperUser_Status
              , SuperUser_SubStatus
             )
@@ -388,8 +390,7 @@ THEN INSERT (  Member_Key
              , source.CountOf_LOB
              , source.CountOfFiles
              , source.[FileName]
-             , CONVERT(date, GETDATE())
-             , CONVERT(date, GETDATE())
+             , GETDATE()
              , 'Active'
              , 'New'
             )
@@ -476,12 +477,12 @@ THEN UPDATE
           , target.CountOf_LOB             = source.CountOf_LOB
           , target.CountOfFiles            = target.CountOfFiles + 1
           , target.[FileName]              = source.[FileName]
-          , target.LastModifiedDate        = CONVERT(date, GETDATE())
+          , target.LastModifiedDate        = GETDATE()
           , target.SuperUser_Status        = 'Active'
           , target.SuperUser_SubStatus     = 'Updated'
 WHEN NOT MATCHED BY source
 THEN UPDATE
-        SET target.DropDate = CONVERT(date, GETDATE())
+        SET target.DropDate = GETDATE()
           , target.SuperUser_Status        = 'Inactive'
           , target.SuperUser_SubStatus     = 'Dropped'
 ;
