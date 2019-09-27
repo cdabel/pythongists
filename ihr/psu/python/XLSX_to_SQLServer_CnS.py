@@ -159,7 +159,8 @@ CREATE TABLE {destination_table} (
   , Member_City         varchar(50)    NULL
   , Member_State        varchar(10)    NULL
   , Member_Zip          varchar(10)    NULL
-  , HCFA_CNTY_NM        varchar(50)    NULL
+  , Member_Sex          varchar(10)    NULL
+  , HCFA_CNTY_NM        varchar(3)     NULL
   , file_origin         varchar(3)     NULL
   , date_ingested       varchar(30)    NULL
   , FileName            varchar(255)   NULL
