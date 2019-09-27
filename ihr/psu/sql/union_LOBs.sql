@@ -163,7 +163,7 @@ SELECT 'C&S'                                               AS LineOfBusiness
      , CONVERT(date, Member_DOB)                           AS Member_DOB
      , Subscriber_ID                                       AS Subscriber_ID
      , NULL                                                AS Indv_ID
-     , NULL                                                AS MemberGender
+     , Member_Sex                                          AS MemberGender
      , pred_model                                          AS HCE_PredictiveScore
      , pred_model_flag                                     AS PredictiveFlag
      , pred_model_cutoff                                   AS PredictiveCutoff
