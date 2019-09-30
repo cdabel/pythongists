@@ -335,7 +335,9 @@ if (row_diff_aco > 0):
 
 print('E&I (ACO) job completed | {} rows failed to insert.'.format(row_diff_aco))
 
-sys.exit('Both files imported:\n'
-         ' - {} non-ACO rows failed to insert.\n'
-         ' - {} ACO rows failed to insert.'
-         .format(row_diff_nonaco, row_diff_aco))
+print('Both files imported:\n'
+      ' - {} non-ACO rows failed to insert.\n'
+      ' - {} ACO rows failed to insert.'
+      .format(row_diff_nonaco, row_diff_aco))
+
+sys.exit(0)

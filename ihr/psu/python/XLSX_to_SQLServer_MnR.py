@@ -232,4 +232,5 @@ if (row_diff > 0):
     raise Exception('{} rows failed to insert'.format(row_diff))
 
 # TODO: Uncomment before publishing
-sys.exit('M&R job completed | {} rows failed to insert.'.format(row_diff))
+print('M&R job completed | {} rows failed to insert.'.format(row_diff))
+sys.exit(0)

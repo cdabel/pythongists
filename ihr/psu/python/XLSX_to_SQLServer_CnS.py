@@ -226,4 +226,5 @@ row_diff = total_rows_to_insert - total_rows_inserted
 if (row_diff > 0):
     raise Exception('{} rows failed to insert.'.format(row_diff))
 
-sys.exit('C&S job completed | {} rows failed to insert.'.format(row_diff))
+# sys.exit('C&S job completed | {} rows failed to insert.'.format(row_diff))
+sys.exit(0)
