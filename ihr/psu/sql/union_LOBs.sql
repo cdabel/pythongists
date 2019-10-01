@@ -9,6 +9,8 @@ GO
 ---- Create date:        9/20/2019
 ---- Description:        Union Super Users from all 3 LOBs and Merge to [member].[SuperUser_all_LOBs]
 ---- Store Proc Name:    sp_merge_superusers
+----                     * How to call this SP from APVEP32146 server connection:
+----                       - EXEC [DBVED36880].IHR_RAP.dbo.sp_merge_superusers;
 ---- ==========================================================================================
 ---- ==========================================================================================
 
@@ -273,8 +275,8 @@ SELECT CONVERT( VARCHAR(32),
      , RCT                                                  AS RCT
      -- VARCHAR to VARCHAR conversion used to prevent error when implicitly converting to datetime on insert
      , CONVERT(VARCHAR(19), load_date_py, 120)              AS load_date_py
-     , COUNT(*) OVER ( PARTITION BY lower(MemberFirstName),
-                                    lower(MemberLastName),
+     , COUNT(*) OVER ( PARTITION BY LOWER(MemberFirstName),
+                                    LOWER(MemberLastName),
                                     Member_DOB,
                                     MemberZipCd )           AS CountOf_LOB
      , 1                                                    AS CountOfFiles
