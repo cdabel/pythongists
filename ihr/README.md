@@ -1,4 +1,4 @@
-# PSU
+# PSU - Persistent Super Users
 
 ## Project Notes
 
@@ -38,3 +38,24 @@ The employees below, who provide us the data, have all committed to provide the 
 
 ## Data
 Each file represents the latest, rolling 12-month lookback period of Super Users across their respective LOB (Line of Business).
+
+Every time the files are loaded, they are full files, meaning that the files contain all superusers for the given lookback period.
+
+We are loading all Super Users from each LOB to our SQL Server database table:
+    - Server:    **APVEP32146**
+    - Database:  **IHR_RAP**
+    - Schema:    **Member**
+    - Table:     **SuperUser_All_LOBs**
+
+To get Persistent Super Users (PSUs), filter the 'Is_PSU' column where it equals to 1.
+
+Around 5% of all members are Super Users. Several factors help the HCE team to classify a member as a super user, an important factor being total healthcare spend. 
+The scoring algorithms that differentiates between Superusers and Persistent Super Users incorporate factors such as:
+        - utilization/spend
+        - risk scores
+        - limited demographics
+        - medical/rx expense utilization and trends
+        - chronic and comorbidity characteristics
+
+These Super Users are scored by a statistical model built in SAS which incorporates factors about the members and outputs a number between 0 and 1. If the Member's score exceeds the threshold, or cutoff, then they are classified as a PSU. 
+Each LOB has its own unique scoring algorithm and which score cutoff which is fixed.
