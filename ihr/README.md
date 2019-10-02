@@ -10,7 +10,7 @@ Create Date:        9/20/2019
 ## How to Push to Production:
 Before publishing any changes, log onto IHR ETL server (APVEP32146) as any user having Github Enterprise access. 
 The code on the server is mapped via Git to the Github Enterprise repository called **sec-dev/data-eng**, 
-(The full URL is _https://github.optum.com/sec-dev/data-eng.git_ ). The code files on the server are under `C:\projects\data-eng\ihr\psu`.
+(The full URL is _https://github.optum.com/sec-dev/data-eng.git_ ). The code files on the server are under `E:\projects\ihr\psu`.
 
 
 ### Steps:
@@ -20,7 +20,7 @@ The code on the server is mapped via Git to the Github Enterprise repository cal
    Once any new changes are pulled/merged to this local repository, then nothing further needs to be done. The SQL Server Agent job will use these files automatically.
 
 Note that if you are logged into the IHR ETL Server as the service account user (as of 09/30/2019, this user is **CEXP_LOAD**), then instead of the steps above, run the following command to pull latest changes:
-`cd C:\projects\data-eng && runas /profile /env /user:MS\<Your Github Enterprise LDAP User Name> "git pull"`
+`cd E:\projects && runas /profile /env /user:MS\<Your LDAP User Name> "git pull"`
 
 Then enter your LDAP password to execute the git pull command).
 
