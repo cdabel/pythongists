@@ -1,0 +1,10 @@
+﻿<?xml version="1.0"?>
+<DTS:ConnectionManager xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:ObjectName="DBVED36880"
+  DTS:DTSID="{8CEE85FB-2BB7-4C99-A15C-93B7118F9A6F}"
+  DTS:CreationName="ADO.NET:SQL">
+  <DTS:ObjectData>
+    <DTS:ConnectionManager
+      DTS:ConnectionString="Data Source=DBVED36880;Integrated Security=SSPI;Connect Timeout=30;" />
+  </DTS:ObjectData>
+</DTS:ConnectionManager>
