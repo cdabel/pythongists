@@ -78,7 +78,13 @@ def read_in_files(latest_file, latest_file_name_ext):
     print('Reading in file {}'.format(latest_file))
     with open(latest_file, "r", newline='') as file:
         global df_data
-        df_data = pd.read_csv(file, dtype=str, sep='|')
+        df_data = pd.read_csv(file,
+                              dtype=str,
+                              sep='|',
+                              # error_bad_lines=False,
+                              warn_bad_lines=True,
+                              memory_map=True,
+                              )
         df_data.columns = df_data.columns.str.strip()   # remove whitespace around column names
         df_data = df_data.astype(str)
         df_data = df_data.applymap(str.strip)           # remove whitespace around values
