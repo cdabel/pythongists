@@ -43,15 +43,15 @@ Trusted_Connection=yes;\
 '''
 
 
-# Test Source Paths:
-SOURCE_PATH         = Path("C:\\Users\\cdabel\\Desktop\\_Temp\\{}")
-SOURCE_PATH_STR     = str(SOURCE_PATH.resolve())
-CWD_SOURCE_PATH_STR = r'C:/Users/cdabel/Desktop/_Temp'  # (to set CWD of subprocess)
-
-# # Actual Source Paths:
-# SOURCE_PATH         = Path("//nasv0403/ihr_prod/Ingest_Storage/MDE/{}")
+# # Test Source Paths:
+# SOURCE_PATH         = Path("C:\\Users\\cdabel\\Desktop\\_Temp\\{}")
 # SOURCE_PATH_STR     = str(SOURCE_PATH.resolve())
-# CWD_SOURCE_PATH_STR = '//nasv0403/ihr_prod/Ingest_Storage/MDE'  # (to set CWD of subprocess)
+# CWD_SOURCE_PATH_STR = r'C:/Users/cdabel/Desktop/_Temp'  # (to set CWD of subprocess)
+
+# Source Paths:
+SOURCE_PATH         = Path("//nasv0403/ihr_prod/Ingest_Storage/MDE/{}")
+SOURCE_PATH_STR     = str(SOURCE_PATH.resolve())
+CWD_SOURCE_PATH_STR = '//nasv0403/ihr_prod/Ingest_Storage/MDE'  # (to set CWD of subprocess)
 
 EXE7ZIP_PATH      = Path("C:\\Program Files\\7-Zip\\7z.exe")
 EXE7ZIP_PATH_STR  = str(EXE7ZIP_PATH.resolve())
@@ -65,7 +65,7 @@ def get_files(search_pattern):
     latest_file_name_ext = os.path.basename(latest_file)
     return latest_file, latest_file_name_ext
 
-
+# TODO: Refactor to have pandas unzip and read file inside read_in_files()
 def unzip_file(zipname):
     # Execute cmd command:  7z e "<zip file path>" oc:\<...working dir path...>
     system = sp.Popen([EXE7ZIP_PATH_STR, "e", zipname, "-y"], cwd=CWD_SOURCE_PATH_STR)
@@ -81,9 +81,9 @@ def read_in_files(latest_file, latest_file_name_ext):
         df_data = pd.read_csv(file,
                               dtype=str,
                               sep='|',
-                              # error_bad_lines=False,
+                              error_bad_lines=False,
                               warn_bad_lines=True,
-                              memory_map=True,
+                              # memory_map=True,
                               )
         df_data.columns = df_data.columns.str.strip()   # remove whitespace around column names
         df_data = df_data.astype(str)
@@ -128,7 +128,6 @@ def run_insert_query(rowcount, rowlist, latest_file_name_ext, ins_query, context
 #      #   #  # # #  #
 #       ###    ###   #####
 #                 #
-# Non-ACO
 qdrop = f"""DROP TABLE IF EXISTS {destination_table}"""
 # `date_ingested` to be calculated upon ingestion
 qcreate = f"""
@@ -252,6 +251,8 @@ CREATE TABLE {destination_table}
   , [MSR_RSLT_86]                 BIT            NULL
   , [PARTD_ALRT_LVL_86]           VARCHAR(1)     NULL
   , [MSR_RSLT_CY_86]              BIT            NULL
+  , [Date_Ingested]               VARCHAR(30)    NULL
+  , [FileName]                    VARCHAR(50)    NULL
 )
 ;
 """
@@ -265,7 +266,7 @@ CREATE TABLE {destination_table}
 #   #      # #    #   # #    #####  #       #       #       #   #     #
 #   #     #   #   #   #  #   #   #  #   #   #       #       #   #     #
 #   ##### #   #   #   #   #  #   #   ###    #       #      ###  ####  #####
-#
+# 
 latest_file, latest_name_ext = get_files("Master_Extract_Data_Mart_*.zip")
 unzip_file(latest_file)
 latest_file, latest_name_ext = get_files("Master_Extract_Data_Mart_*.txt")
@@ -281,7 +282,7 @@ latest_file, latest_name_ext = get_files("Master_Extract_Data_Mart_*.txt")
 #   ####    ###   ###  ##### ####       ###  #   #   ###  ##### #   #   #
 #
 cols_to_update, rows_list = read_in_files(latest_file, latest_name_ext)
-cols_to_update.append("date_ingested")
+cols_to_update.append("Date_Ingested")
 cols_to_update.append("FileName")
 
 
