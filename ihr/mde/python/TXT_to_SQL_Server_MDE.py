@@ -22,9 +22,11 @@ from pathlib import Path
 import subprocess as sp
 import glob
 import os
+import urllib
+import sqlalchemy as sql
 import pandas as pd
 import sys
-import pypyodbc as pypy
+import pyodbc as py
 import time
 import datetime as dt
 
@@ -35,18 +37,14 @@ destination_db      = "IHR_RAP"
 destination_schema  = "stage"
 dest_tablename      = "Master_Data_Extract_MnR_Latest"
 destination_table   = f"""[{destination_db}].[{destination_schema}].[{dest_tablename}]"""
-conn_str = f'''\
+conn_str            = f'''\
 Driver={dest_odbc_driver};\
 Server={destination_server};\
 Database={destination_db};\
 Trusted_Connection=yes;\
 '''
+conn_quoted = urllib.parse.quote_plus(conn_str)
 
-
-# # Test Source Paths:
-# SOURCE_PATH         = Path("C:\\Users\\cdabel\\Desktop\\_Temp\\{}")
-# SOURCE_PATH_STR     = str(SOURCE_PATH.resolve())
-# CWD_SOURCE_PATH_STR = r'C:/Users/cdabel/Desktop/_Temp'  # (to set CWD of subprocess)
 
 # Source Paths:
 SOURCE_PATH         = Path("//nasv0403/ihr_prod/Ingest_Storage/MDE/{}")
@@ -56,6 +54,10 @@ CWD_SOURCE_PATH_STR = '//nasv0403/ihr_prod/Ingest_Storage/MDE'  # (to set CWD of
 EXE7ZIP_PATH      = Path("C:\\Program Files\\7-Zip\\7z.exe")
 EXE7ZIP_PATH_STR  = str(EXE7ZIP_PATH.resolve())
 
+
+# SQL ALCHEMY ENGINE
+engine = sqlalchemy.create_engine("mssql+pyodbc:///?odbc_connect={}".format(conn_quoted),
+                                  fast_executemany=True)
 
 # Get File
 def get_files(search_pattern):
@@ -85,9 +87,9 @@ def read_in_files(latest_file, latest_file_name_ext):
                               warn_bad_lines=True,
                               # memory_map=True,
                               )
-        df_data.columns = df_data.columns.str.strip()   # remove whitespace around column names
+        df_data.columns = df_data.columns.str.strip()         # remove whitespace around column names
         df_data = df_data.astype(str)
-        df_data = df_data.applymap(str.strip)           # remove whitespace around values
+        df_data = df_data.applymap(str.strip)                 # remove whitespace around values
         # df_enifile = df_enifile.replace('', np.nan)         # map nans, to drop NAs rows and columns later
         # df_enifile = df_enifile.dropna(how='all', axis=0)   # remove rows containing only NAs
         # df_enifile = df_enifile.dropna(how='all', axis=1)   # remove columns containing only NAs
@@ -100,162 +102,23 @@ def runquery(querystr):
     try:
         cursor.execute(querystr)
         conn.commit()
-    except pypy.ProgrammingError:
+    except py.ProgrammingError:
         pass
 
 
-def run_insert_query(rowcount, rowlist, latest_file_name_ext, ins_query, context, rowlimit):
-    if (rowcount == 0):
-        global rows_to_insert
-        rows_to_insert = rowlist[0:rowlimit]
-        for r in range(len(rows_to_insert)):
-            rows_to_insert[r].append(dt.datetime.now())
-            rows_to_insert[r].append(latest_file_name_ext)
-        print(f"Executing {context} bulk insert...")
-        cursor.fast_executemany = True
-        cursor.executemany(ins_query, rows_to_insert)
-    else:
-        raise Exception(f"Target {context} table not empty. Exiting to prevent dupes.")
-        sys.exit()
-
-
-#
-#       ###    ###   #
-#      #   #  #   #  #
-#      #      #   #  #
-#       ###   #   #  #
-#          #  #   #  #
-#      #   #  # # #  #
-#       ###    ###   #####
-#                 #
-qdrop = f"""DROP TABLE IF EXISTS {destination_table}"""
-# `date_ingested` to be calculated upon ingestion
-qcreate = f"""
-CREATE TABLE {destination_table}
-(
-    [RPT_MO_KEY]                  VARCHAR(6)     NULL
-  , [MBR_HICN_NUM]                VARCHAR(5)     NULL
-  , [MBR_VDS_ID]                  VARCHAR(30)    NULL
-  , [MBR_INDV_ID]                 VARCHAR(35)    NULL
-  , [MBR_CRD_ID]                  VARCHAR(30)    NULL
-  , [MBR_CURR_CMS_CONTR_NUM]      VARCHAR(5)     NULL
-  , [MBR_CURR_CMS_PBP_CD]         VARCHAR(3)     NULL
-  , [MBR_LST_NM]                  VARCHAR(50)    NULL
-  , [MBR_FST_NM]                  VARCHAR(30)    NULL
-  , [MBR_MIDL_INIT]               VARCHAR(1)     NULL
-  , [MBR_DOB]                     VARCHAR(10)    NULL
-  , [MBR_GDR_CD]                  VARCHAR(1)     NULL
-  , [MBR_ADR_LN1_TXT]             VARCHAR(50)    NULL
-  , [MBR_ADR_LN2_TXT]             VARCHAR(50)    NULL
-  , [MBR_ADR_CTY_NM]              VARCHAR(50)    NULL
-  , [MBR_ADR_ST_CD]               VARCHAR(2)     NULL
-  , [MBR_ADR_ZIP_FULL_CD]         VARCHAR(9)     NULL
-  , [MBR_DAY_PH_NUM]              VARCHAR(15)    NULL
-  , [MBR_ANNL_CARE_VST_FLG]       BIT            NULL
-  , [MBR_ANNL_CARE_VST_DT]        VARCHAR(10)    NULL
-  , [MBR_ANNL_CARE_VST_DT_HC]     VARCHAR(10)    NULL
-  , [MBR_DIAB_IND]                VARCHAR(1)     NULL
-  , [MBR_INCNT_PGM_IND]           VARCHAR(200)   NULL
-  , [MBR_TYP_CD]                  VARCHAR(5)     NULL
-  , [SRC_SYS]                     VARCHAR(200)   NULL
-  , [ASGN_PROV_VDS_ID]            VARCHAR(200)   NULL
-  , [ASGN_PROV_MPIN_NUM]          VARCHAR(30)    NULL
-  , [ASGN_PROV_NPI_NUM]           VARCHAR(30)    NULL
-  , [ASGN_PROV_TIN_NUM]           VARCHAR(30)    NULL
-  , [ASGN_PROV_LST_NM]            VARCHAR(60)    NULL
-  , [ASGN_PROV_FST_NM]            VARCHAR(64)    NULL
-  , [ASGN_PROV_ADR_LN1_TXT]       VARCHAR(50)    NULL
-  , [ASGN_PROV_ADR_LN2_TXT]       VARCHAR(50)    NULL
-  , [ASGN_PROV_ADR_CTY_NM]        VARCHAR(50)    NULL
-  , [ASGN_PROV_ADR_ST_CD]         VARCHAR(2)     NULL
-  , [ASGN_PROV_ADR_ZIP_FULL_CD]   VARCHAR(9)     NULL
-  , [MSR_1_BCS_RSLT]              VARCHAR(1)     NULL
-  , [MSR_2_COL_RSLT]              VARCHAR(1)     NULL
-  , [MSR_3_CMCSCR_RSLT]           VARCHAR(1)     NULL
-  , [MSR_4_CDCLPP_RSLT]           VARCHAR(1)     NULL
-  , [MSR_5_GSO_RSLT]              VARCHAR(1)     NULL
-  , [MSR_12_ABA_RSLT]             VARCHAR(1)     NULL
-  , [MSR_13_COAMR_RSLT]           VARCHAR(1)     NULL
-  , [MSR_14_COAFSA_RSLT]          VARCHAR(1)     NULL
-  , [MSR_15_COAPS_RSLT]           VARCHAR(1)     NULL
-  , [MSR_16_OMW_RSLT]             VARCHAR(1)     NULL
-  , [MSR_16_OMW_DT]               VARCHAR(10)    NULL
-  , [MSR_91_OMWX_RSLT]            VARCHAR(1)     NULL
-  , [MSR_91_OMWX_DT]              VARCHAR(10)    NULL
-  , [MSR_17_CDCEYE_RSLT]          VARCHAR(1)     NULL
-  , [MSR_18_CDCNEP_RSLT]          VARCHAR(1)     NULL
-  , [MSR_19_CDCA1C9_RSLT]         VARCHAR(1)     NULL
-  , [MSR_20_CDC100_RSLT]          VARCHAR(1)     NULL
-  , [MSR_21_CBP_RSLT]             TINYINT        NULL
-  , [MSR_22_ART_RSLT]             TINYINT        NULL
-  , [MSR_49_HRM_PYR_RSLT]         VARCHAR(1)     NULL
-  , [MSR_49_HRM_CYR_STS]          VARCHAR(1)     NULL
-  , [MSR_49_HRM_CYR_RSLT]         VARCHAR(1)     NULL
-  , [MSR_51_MAD_PYR_RSLT]         VARCHAR(1)     NULL
-  , [MSR_51_MAD_CYR_STS]          VARCHAR(1)     NULL
-  , [MSR_51_MAD_CYR_RSLT]         TINYINT        NULL
-  , [MSR_51_MAD_CURR_PDC]         VARCHAR(10)    NULL
-  , [MSR_51_MAD_FA_CYR_RSLT]      TINYINT        NULL
-  , [MSR_51_MAD_AD]               SMALLINT       NULL
-  , [MSR_51_MAD_DM45]             SMALLINT       NULL
-  , [MSR_51_MAD_EOY_PDC_PRED]     VARCHAR(10)    NULL
-  , [MSR_52_MAH_PYR_RSLT]         VARCHAR(1)     NULL
-  , [MSR_52_MAH_CYR_STS]          VARCHAR(1)     NULL
-  , [MSR_52_MAH_CYR_RSLT]         TINYINT        NULL
-  , [MSR_52_MAH_CURR_PDC]         VARCHAR(10)    NULL
-  , [MSR_52_MAH_FA_CYR_RSLT]      TINYINT        NULL
-  , [MSR_52_MAH_AD]               SMALLINT       NULL
-  , [MSR_52_MAH_DM45]             SMALLINT       NULL
-  , [MSR_52_MAH_EOY_PDC_PRED]     VARCHAR(10)    NULL
-  , [MSR_53_MAC_PYR_RSLT]         VARCHAR(1)     NULL
-  , [MSR_53_MAC_CYR_STS]          VARCHAR(1)     NULL
-  , [MSR_53_MAC_CYR_RSLT]         TINYINT        NULL
-  , [MSR_53_MAC_CURR_PDC]         VARCHAR(10)    NULL
-  , [MSR_53_MAC_FA_CYR_RSLT]      TINYINT        NULL
-  , [MSR_53_MAC_AD]               SMALLINT       NULL
-  , [MSR_53_MAC_DM45]             SMALLINT       NULL
-  , [MSR_53_MAC_EOY_PDC_PRED]     VARCHAR(10)    NULL
-  , [MSR_100_SUPD_PYR_RSLT]       VARCHAR(1)     NULL
-  , [MSR_100_SUPD_CYR_STS]        VARCHAR(1)     NULL
-  , [MSR_100_SUPD_CYR_RSLT]       VARCHAR(1)     NULL
-  , [MSR_101_SPC_RSLT]            VARCHAR(1)     NULL
-  , [MSR_58_FMI_RSLT]             VARCHAR(1)     NULL
-  , [MSR_60_AMM_RSLT]             VARCHAR(1)     NULL
-  , [MSR_61_BBT_RSLT]             VARCHAR(1)     NULL
-  , [MSR_62_MPLM_RSLT]            VARCHAR(1)     NULL
-  , [MSR_64_COPD_RSLT]            VARCHAR(1)     NULL
-  , [MSR_71_PCE_SC_RSLT]          VARCHAR(1)     NULL
-  , [MSR_72_PCEBRON_RSLT]         VARCHAR(1)     NULL
-  , [MSR_73_AODRINITOT_RSLT]      VARCHAR(1)     NULL
-  , [MSR_74_EADT_RSLT]            VARCHAR(1)     NULL
-  , [ASSOC_PROV_VDS_ID]           VARCHAR(200)   NULL
-  , [ASSOC_PROV_MPIN_NUM]         VARCHAR(30)    NULL
-  , [ASSOC_PROV_NPI_NUM]          VARCHAR(30)    NULL
-  , [ASSOC_PROV_TIN]              VARCHAR(30)    NULL
-  , [ASSOC_PROV_LST_NM]           VARCHAR(60)    NULL
-  , [ASSOC_PROV_FST_NM]           VARCHAR(64)    NULL
-  , [ASSOC_PROV_ADR_LN1_TXT]      VARCHAR(50)    NULL
-  , [ASSOC_PROV_ADR_LN2_TXT]      VARCHAR(50)    NULL
-  , [ASSOC_PROV_ADR_CTY_NM]       VARCHAR(50)    NULL
-  , [ASSOC_PROV_ADR_ST_CD]        VARCHAR(2)     NULL
-  , [ASSOC_PROV_ADR_ZIP_FULL_CD]  VARCHAR(9)     NULL
-  , [ASSOC_PROV_ASGN_RNDR_IND]    VARCHAR(1)     NULL
-  , [ASSOC_PROV_GRP_TYP_CD]       VARCHAR(30)    NULL
-  , [ASSOC_PROV_GRP_ID]           VARCHAR(200)   NULL
-  , [ASSOC_PROV_GRP_NM]           VARCHAR(255)   NULL
-  , [ASSOC_HLTH_SYS_ID]           VARCHAR(255)   NULL
-  , [ASSOC_HLTH_SYS_NM]           VARCHAR(255)   NULL
-  , [ROW_INSRT_DT]                VARCHAR(30)    NULL
-  , [LST_HICN_BFR_MBI]            VARCHAR(30)    NULL
-  , [SegmentID]                   TINYINT        NULL
-  , [MSR_RSLT_86]                 BIT            NULL
-  , [PARTD_ALRT_LVL_86]           VARCHAR(1)     NULL
-  , [MSR_RSLT_CY_86]              BIT            NULL
-  , [Date_Ingested]               VARCHAR(30)    NULL
-  , [FileName]                    VARCHAR(50)    NULL
-)
-;
-"""
+# def run_insert_query(rowcount, rowlist, latest_file_name_ext, ins_query, context, rowlimit):
+#     if (rowcount == 0):
+#         global rows_to_insert
+#         rows_to_insert = rowlist[0:rowlimit]
+#         for r in range(len(rows_to_insert)):
+#             rows_to_insert[r].append(dt.datetime.now())
+#             rows_to_insert[r].append(latest_file_name_ext)
+#         print(f"Executing {context} bulk insert...")
+#         cursor.fast_executemany = True
+#         cursor.executemany(ins_query, rows_to_insert)
+#     else:
+#         raise Exception(f"Target {context} table not empty. Exiting to prevent dupes.")
+#         sys.exit()
 
 
 #
@@ -271,92 +134,96 @@ latest_file, latest_name_ext = get_files("Master_Extract_Data_Mart_*.zip")
 unzip_file(latest_file)
 latest_file, latest_name_ext = get_files("Master_Extract_Data_Mart_*.txt")
 
-
 #
-#   ####   #   #  ###  #     ####       ###  #   #   ###  ##### ####  #####
-#    #  #  #   #   #   #      #  #       #   #   #  #   # #     #   #   #
-#    #  #  #   #   #   #      #  #       #   ##  #  #     #     #   #   #
-#    ###   #   #   #   #      #  #       #   # # #   ###  ####  ####    #
-#    #  #  #   #   #   #      #  #       #   #  ##      # #     # #     #
-#    #  #  #   #   #   #      #  #       #   #   #  #   # #     #  #    #
-#   ####    ###   ###  ##### ####       ###  #   #   ###  ##### #   #   #
+#   ####   #   #  ###  #    ####        ####   #####
+#    #  #  #   #   #   #     #  #        #  #  #
+#    #  #  #   #   #   #     #  #        #  #  #
+#    ###   #   #   #   #     #  #        #  #  ####
+#    #  #  #   #   #   #     #  #        #  #  #
+#    #  #  #   #   #   #     #  #        #  #  #
+#   ####    ###   ###  #### ####        ####   #
 #
 cols_to_update, rows_list = read_in_files(latest_file, latest_name_ext)
 cols_to_update.append("Date_Ingested")
 cols_to_update.append("FileName")
 
 
-# Generate series of parameters for INSERT statements
-param_builder = "?"
-for i in range(len(cols_to_update) - 1):  # minus 1 since it initialized with 1
-    param_builder += ", ?"
+# #   ####   #   #  ###  #     ####       ###  #   #   ###  ##### ####  #####
+# #    #  #  #   #   #   #      #  #       #   #   #  #   # #     #   #   #
+# #    #  #  #   #   #   #      #  #       #   ##  #  #     #     #   #   #
+# #    ###   #   #   #   #      #  #       #   # # #   ###  ####  ####    #
+# #    #  #  #   #   #   #      #  #       #   #  ##      # #     # #     #
+# #    #  #  #   #   #   #      #  #       #   #   #  #   # #     #  #    #
+# #   ####    ###   ###  ##### ####       ###  #   #   ###  ##### #   #   #
+# #
+# # Generate series of parameters for INSERT statements
+# param_builder = "?"
+# for i in range(len(cols_to_update) - 1):  # minus 1 since it initialized with 1
+#     param_builder += ", ?"
+
+# # Build INSERT statements
+# strofcols = ",\n  ".join(cols_to_update)  # print(strofcols)
+# qinsert = f"""
+# INSERT INTO {destination_table}
+# ( {strofcols} )
+# VALUES ( {param_builder} )
+# """  # print(qinsert)
 
 
-# Build INSERT statements
-strofcols = ",\n  ".join(cols_to_update)  # print(strofcols)
-qinsert = f"""
-INSERT INTO {destination_table}
-( {strofcols} )
-VALUES ( {param_builder} )
-"""  # print(qinsert)
+# #  
+# #     ###    ###   #   #  #   #  #####          ####   ####   #####
+# #    #   #  #   #  #   #  #   #    #            #   #  #   #  #
+# #    #      #   #  #   #  ##  #    #            #   #  #   #  #
+# #    #      #   #  #   #  # # #    #    #####   ####   ####   ####
+# #    #      #   #  #   #  #  ##    #            #      # #    #
+# #    #   #  #   #  #   #  #   #    #            #      #  #   #
+# #     ###    ###    ###   #   #    #            #      #   #  #####
+# #
+# #  TODO: Replace with SQL Alchemy code 
+# conn = py.connect(conn_str)
+# cursor = conn.cursor()
+# # Check existing rowcounts of target tables
+# cursor.execute(f"SELECT count(*) FROM {destination_table}")
+# rowcount_pre = cursor.fetchone()
+# rowcount_pre = rowcount_pre[0]
+# cursor.close()
+# conn.close()
 
 
 #
-#    ####   ####    #
-#     #  #   #  #   #
-#     #  #   #  #   #
-#     #  #   #  #   #
-#     #  #   #  #   #
-#     #  #   #  #   #
-#    ####   ####    #####
+#    ###  #   #   ###   #### ####  #####  ###
+#     #   #   #  #   #  #    #   #   #   #   #
+#     #   ##  #  #      #    #   #   #   #
+#     #   # # #   ###   ###  ####    #    ###
+#     #   #  ##      #  #    # #     #       #
+#     #   #   #  #   #  #    #  #    #   #   #
+#    ###  #   #   ###   #### #   #   #    ###
 #
-# Open connection/cursor
-conn = pypy.connect(conn_str)
-cursor = conn.cursor()
+total_rows_to_insert = 10000  # len(rows_list)
+start_time = time.time()      # START TIMER
 
-
-# Prep staging tables
-runquery(qdrop)    # drop stage table if it exists (supported on SQL Server 2016+)
-runquery(qcreate)  # create staging table
-conn.commit()
-
-
-# Check existing rowcounts of target tables
-cursor.execute(f"SELECT count(*) FROM {destination_table}")
-rowcount_pre = cursor.fetchone()
-rowcount_pre = rowcount_pre[0]
-
-
-#
-#   ####   #   #   #            ###  #   #   ###   #### ####  #####  ###
-#    #  #  #   #   #             #   #   #  #   #  #    #   #   #   #   #
-#    #  #  ## ##   #             #   ##  #  #      #    #   #   #   #
-#    #  #  # # #   #     ####    #   # # #   ###   ###  ####    #    ###
-#    #  #  #   #   #             #   #  ##      #  #    # #     #       #
-#    #  #  #   #   #             #   #   #  #   #  #    #  #    #   #   #
-#   ####   #   #   ####         ###  #   #   ###   #### #   #   #    ###
-#
-total_rows_to_insert = 20  # len(rows_list)
-start_time = time.time()  # START TIMER
-
-rows_to_insert = []
-rows_to_insert.clear()
-run_insert_query(rowcount_pre,
-                 rows_list,
-                 latest_name_ext,
-                 qinsert,
-                 "Master_Data_Extract",
-                 total_rows_to_insert)
-conn.commit()
+# Drop/Replace staging table and insert in one step
+qcreate = df_data.to_sql(dest_tablename,
+                         con=engine,
+                         schema="stage",
+                         if_exists="replace",
+                         index=False,
+                         # chunksize=10000,
+                         method=None,  # Ensures cursor.executemany() is used
+                         )
 
 end_time = time.time()  # END TIMER
 elapsed_time = str(round(end_time - start_time, 1))
 print("MDE's {} INSERTS Completed in {} seconds".format(total_rows_to_insert, elapsed_time))
 
 # Get final rowcounts of target table
+conn = py.connect(conn_str)
+cursor = conn.cursor()
 cursor.execute(f"SELECT count(*) FROM {destination_table}")
 rowcount_post = cursor.fetchone()
 rowcount_post = rowcount_post[0]
+cursor.close()
+conn.close()
 
 
 #
