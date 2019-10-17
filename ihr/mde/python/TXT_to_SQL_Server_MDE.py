@@ -78,8 +78,8 @@ def unzip_file(zipname):
 def read_in_files(latest_file, latest_file_name_ext):
     latest_file_name, latest_file_extension = os.path.splitext(latest_file_name_ext)
     print('Reading in file {}'.format(latest_file))
+    start_time = time.time()      # START TIMER
     with open(latest_file, "r", newline='') as file:
-        global df_data
         df_data = pd.read_csv(file,
                               dtype=str,
                               sep='|',
@@ -94,7 +94,10 @@ def read_in_files(latest_file, latest_file_name_ext):
         # df_enifile = df_enifile.dropna(how='all', axis=0)   # remove rows containing only NAs
         # df_enifile = df_enifile.dropna(how='all', axis=1)   # remove columns containing only NAs
         # df_enifile = df_enifile.replace(np.nan, 'NA')       # turbodbc hates null values...
-        return df_data.columns.values.tolist(), df_data.values.tolist()
+        end_time = time.time()  # END TIMER
+        elapsed_time = round(end_time - start_time, 1)
+        print("Finished in {} seconds".format(elapsed_time))
+        return df_data
 
 
 # Execute a query
@@ -106,21 +109,6 @@ def runquery(querystr):
         pass
 
 
-# def run_insert_query(rowcount, rowlist, latest_file_name_ext, ins_query, context, rowlimit):
-#     if (rowcount == 0):
-#         global rows_to_insert
-#         rows_to_insert = rowlist[0:rowlimit]
-#         for r in range(len(rows_to_insert)):
-#             rows_to_insert[r].append(dt.datetime.now())
-#             rows_to_insert[r].append(latest_file_name_ext)
-#         print(f"Executing {context} bulk insert...")
-#         cursor.fast_executemany = True
-#         cursor.executemany(ins_query, rows_to_insert)
-#     else:
-#         raise Exception(f"Target {context} table not empty. Exiting to prevent dupes.")
-#         sys.exit()
-
-
 #
 #   ##### #   # ##### ####     #     ###  #####     #####  ###  #     #####
 #   #     #   #   #   #   #   # #   #   #   #       #       #   #     #
@@ -130,9 +118,18 @@ def runquery(querystr):
 #   #     #   #   #   #  #   #   #  #   #   #       #       #   #     #
 #   ##### #   #   #   #   #  #   #   ###    #       #      ###  ####  #####
 # 
-latest_file, latest_name_ext = get_files("Master_Extract_Data_Mart_*.zip")
-unzip_file(latest_file)
-latest_file, latest_name_ext = get_files("Master_Extract_Data_Mart_*.txt")
+latest_zipfile, latest_zipname_ext = get_files("Master_Extract_Data_Mart_*.zip")
+latest_txtfile, latest_txtname_ext = get_files("Master_Extract_Data_Mart_*.txt")
+
+latest_zip_name, latest_zip_ext    = os.path.splitext(latest_zipname_ext)
+latest_txt_name, latest_txt_ext    = os.path.splitext(latest_txtname_ext)
+
+if latest_txt_name != latest_zip_name:
+    unzip_file(latest_zipfile)
+    latest_file, latest_name_ext = get_files("Master_Extract_Data_Mart_*.txt")
+else:
+    latest_file, latest_name_ext = latest_txtfile, latest_txtname_ext
+
 
 #
 #   ####   #   #  ###  #    ####        ####   #####
@@ -143,51 +140,9 @@ latest_file, latest_name_ext = get_files("Master_Extract_Data_Mart_*.txt")
 #    #  #  #   #   #   #     #  #        #  #  #
 #   ####    ###   ###  #### ####        ####   #
 #
-cols_to_update, rows_list = read_in_files(latest_file, latest_name_ext)
-cols_to_update.append("Date_Ingested")
-cols_to_update.append("FileName")
-
-
-# #   ####   #   #  ###  #     ####       ###  #   #   ###  ##### ####  #####
-# #    #  #  #   #   #   #      #  #       #   #   #  #   # #     #   #   #
-# #    #  #  #   #   #   #      #  #       #   ##  #  #     #     #   #   #
-# #    ###   #   #   #   #      #  #       #   # # #   ###  ####  ####    #
-# #    #  #  #   #   #   #      #  #       #   #  ##      # #     # #     #
-# #    #  #  #   #   #   #      #  #       #   #   #  #   # #     #  #    #
-# #   ####    ###   ###  ##### ####       ###  #   #   ###  ##### #   #   #
-# #
-# # Generate series of parameters for INSERT statements
-# param_builder = "?"
-# for i in range(len(cols_to_update) - 1):  # minus 1 since it initialized with 1
-#     param_builder += ", ?"
-
-# # Build INSERT statements
-# strofcols = ",\n  ".join(cols_to_update)  # print(strofcols)
-# qinsert = f"""
-# INSERT INTO {destination_table}
-# ( {strofcols} )
-# VALUES ( {param_builder} )
-# """  # print(qinsert)
-
-
-# #  
-# #     ###    ###   #   #  #   #  #####          ####   ####   #####
-# #    #   #  #   #  #   #  #   #    #            #   #  #   #  #
-# #    #      #   #  #   #  ##  #    #            #   #  #   #  #
-# #    #      #   #  #   #  # # #    #    #####   ####   ####   ####
-# #    #      #   #  #   #  #  ##    #            #      # #    #
-# #    #   #  #   #  #   #  #   #    #            #      #  #   #
-# #     ###    ###    ###   #   #    #            #      #   #  #####
-# #
-# #  TODO: Replace with SQL Alchemy code 
-# conn = py.connect(conn_str)
-# cursor = conn.cursor()
-# # Check existing rowcounts of target tables
-# cursor.execute(f"SELECT count(*) FROM {destination_table}")
-# rowcount_pre = cursor.fetchone()
-# rowcount_pre = rowcount_pre[0]
-# cursor.close()
-# conn.close()
+df_data, latest_name_ext = read_in_files(latest_file, latest_name_ext)
+df_data['Date_Ingested'] = dt.datetime.now()
+df_data['FileName']      = latest_name_ext
 
 
 #
@@ -199,7 +154,8 @@ cols_to_update.append("FileName")
 #     #   #   #  #   #  #    #  #    #   #   #
 #    ###  #   #   ###   #### #   #   #    ###
 #
-total_rows_to_insert = 10000  # len(rows_list)
+df_data = df_data.head(10000)  # REVIEW:  Delete this line after development is complete.
+total_rows_to_insert = len(df_data.index)
 start_time = time.time()      # START TIMER
 
 # Drop/Replace staging table and insert in one step
@@ -208,13 +164,13 @@ qcreate = df_data.to_sql(dest_tablename,
                          schema="stage",
                          if_exists="replace",
                          index=False,
-                         # chunksize=10000,
-                         method=None,  # Ensures cursor.executemany() is used
+                         chunksize=1000,
+                         method=None,         # Ensures cursor.executemany() is used
                          )
 
 end_time = time.time()  # END TIMER
-elapsed_time = str(round(end_time - start_time, 1))
-print("MDE's {} INSERTS Completed in {} seconds".format(total_rows_to_insert, elapsed_time))
+elapsed_time = round(end_time - start_time, 1)
+print("MDE's {} INSERTS completed in {} seconds".format(total_rows_to_insert, elapsed_time))
 
 # Get final rowcounts of target table
 conn = py.connect(conn_str)
@@ -245,4 +201,4 @@ print('File imported successfully:\n'
       ' - {} rows failed to insert.\n'
       .format(row_diff))
 
-# sys.exit(0)
+# sys.exit(0)  # REVIEW:  Delete this line when ready for Prod.
