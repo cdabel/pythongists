@@ -112,13 +112,17 @@ def read_in_files(latest_file, latest_file_name_ext):
         return df_data
 
 
-# Execute a query
-def runquery(querystr):
-    try:
-        cursor.execute(querystr)
-        conn.commit()
-    except py.ProgrammingError:
-        pass
+def load_table(iter, repl_or_app, chunksize):
+    list_df[iter].to_sql(dest_tablename,
+                      con=engine,
+                      schema="stage",
+                      if_exists=repl_or_app,
+                      index=False,
+                      chunksize=chunksize,
+                      method=None,  # Ensures cursor.executemany() is used
+                      )
+    print("{} rows inserted. {} of {} chunks complete."
+          .format(len(list_df[iter]), iter+1, len(list_df) ))
 
 
 #
@@ -149,26 +153,26 @@ df_data['FileName']      = latest_name_ext
 
 
 #  
-#    ###   #   #  #   #  #   #  #   #         ####   #####
-#   #   #  #   #  #   #  #   #  #  #           #  #  #
-#   #      #   #  #   #  ##  #  # #            #  #  #
-#   #      #####  #   #  # # #  ##             #  #  ####
-#   #      #   #  #   #  #  ##  # #            #  #  #
-#   #   #  #   #  #   #  #   #  #  #           #  #  #
-#    ###   #   #   ###   #   #  #   #         ####   #
+#    ###   #   #  #   #  #   #  #   #     ####   #####
+#   #   #  #   #  #   #  #   #  #  #       #  #  #
+#   #      #   #  #   #  ##  #  # #        #  #  #
+#   #      #####  #   #  # # #  ##         #  #  ####
+#   #      #   #  #   #  #  ##  # #        #  #  #
+#   #   #  #   #  #   #  #   #  #  #       #  #  #
+#    ###   #   #   ###   #   #  #   #     ####   #
 #  
 size = 100000  # chunk row size
 list_df = [df[i:i+size] for i in range(0, df.shape[0], size)]
 
 
 #
-#    ###  #   #   ###   #### ####  #####  ###
-#     #   #   #  #   #  #    #   #   #   #   #
-#     #   ##  #  #      #    #   #   #   #
-#     #   # # #   ###   ###  ####    #    ###
-#     #   #  ##      #  #    # #     #       #
-#     #   #   #  #   #  #    #  #    #   #   #
-#    ###  #   #   ###   #### #   #   #    ###
+#    ###  #   #   ###   ####  ####  #####  ###
+#     #   #   #  #   #  #     #   #   #   #   #
+#     #   ##  #  #      #     #   #   #   #
+#     #   # # #   ###   ###   ####    #    ###
+#     #   #  ##      #  #     # #     #       #
+#     #   #   #  #   #  #     #  #    #   #   #
+#    ###  #   #   ###   ####  #   #   #    ###
 #
 # df_data = df_data.head(100000)  # REVIEW:  Comment out this line when testing
 total_rows_to_insert = len(df_data.index)
@@ -177,29 +181,20 @@ start_time = time.time()  # START TIMER
 for i in len(list_df):
     # Drop/Replace staging table and insert in one step
     if i = 0:
-        list_df[i].to_sql(dest_tablename,
-                          con=engine,
-                          schema="stage",
-                          if_exists="replace",
-                          index=False,
-                          chunksize=500
-                          method=None,  # Ensures cursor.executemany() is used
-                          )
-        print("{} rows inserted." 
-              "One {} chunk down, {} to go..."
-              .format(len(list_df[i], size, len(list_df) - 1))
+        
     else:
         list_df[i].to_sql(dest_tablename,
                           con=engine,
                           schema="stage",
                           if_exists="append",
                           index=False,
-                          chunksize=500
+                          chunksize=500,
                           method=None,  # Ensures cursor.executemany() is used
                           )
-        print("{} rows inserted. One {} chunk down, {} to go..."
-              .format(len(list_df[i], size, len(list_df) - (i+1)
-                     )
+        if i = len(list_df):
+            print("{} rows inserted. Another chunk down, {} to go..."
+                  .format(len(list_df[i], len(list_df) - (i+1)
+                  )
               )
 
 
