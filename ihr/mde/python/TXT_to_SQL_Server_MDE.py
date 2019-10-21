@@ -19,10 +19,10 @@ DESCRIPTION:
 """
 
 from pathlib import Path
+from urllib import parse
 import subprocess as sp
 import glob
 import os
-import urllib
 import sqlalchemy as sql
 import pandas as pd
 import sys
@@ -43,7 +43,7 @@ Server={destination_server};\
 Database={destination_db};\
 Trusted_Connection=yes;\
 '''
-conn_quoted = urllib.parse.quote_plus(conn_str)
+conn_quoted = parse.quote_plus(conn_str)
 
 
 # Source Paths:
@@ -59,6 +59,7 @@ EXE7ZIP_PATH_STR  = str(EXE7ZIP_PATH.resolve())
 engine = sql.create_engine("mssql+pyodbc:///?odbc_connect={}".format(conn_quoted),
                            fast_executemany=True)
 
+
 # Get File
 def get_files(search_pattern):
     # global list_files
@@ -66,6 +67,7 @@ def get_files(search_pattern):
     latest_file = max(list_files, key=os.path.getctime)
     latest_file_name_ext = os.path.basename(latest_file)
     return latest_file, latest_file_name_ext
+
 
 # TODO: Refactor to have pandas unzip and read file inside read_in_files()
 def unzip_file(zipname):
@@ -100,7 +102,7 @@ def read_in_files(latest_file, latest_file_name_ext):
                               memory_map=True,
                               )
         df_data.columns = df_data.columns.str.strip()         # remove whitespace around column names
-        df_data = df_data.astype(str)
+        df_data = df_data.astype(str)                         # convert everything to strings
         df_data = df_data.applymap(str.strip)                 # remove whitespace around values
         # df_enifile = df_enifile.replace('', np.nan)         # map nans, to drop NAs rows and columns later
         # df_enifile = df_enifile.dropna(how='all', axis=0)   # remove rows containing only NAs
@@ -112,17 +114,17 @@ def read_in_files(latest_file, latest_file_name_ext):
         return df_data
 
 
-def load_table(iter, repl_or_app, chunksize):
-    list_df[iter].to_sql(dest_tablename,
-                      con=engine,
-                      schema="stage",
-                      if_exists=repl_or_app,
-                      index=False,
-                      chunksize=chunksize,
-                      method=None,  # Ensures cursor.executemany() is used
-                      )
-    print("{} rows inserted. {} of {} chunks complete."
-          .format(len(list_df[iter]), iter+1, len(list_df) ))
+def load_table(i, dataframe, repl_or_app, numrows):
+    dataframe.to_sql(dest_tablename,
+                     con=engine,
+                     schema="stage",
+                     if_exists=repl_or_app,
+                     index=False,
+                     chunksize=numrows,       # Edit here to optimize performance
+                     method=None,             # Ensures cursor.executemany() is used
+                     )
+    print("{} rows inserted.  |  {} of {} lists loaded."
+          .format(dataframe.shape[0], i, len(df_list)))
 
 
 #
@@ -133,7 +135,7 @@ def load_table(iter, repl_or_app, chunksize):
 #   #      # #    #   # #    #####  #       #       #       #   #     #
 #   #     #   #   #   #  #   #   #  #   #   #       #       #   #     #
 #   ##### #   #   #   #   #  #   #   ###    #       #      ###  ####  #####
-# 
+#
 latest_file, latest_name_ext = unzip_ifdiff("Master_Extract_Data_Mart_*.zip",
                                             "Master_Extract_Data_Mart_*.txt")
 
@@ -152,17 +154,18 @@ df_data['Date_Ingested'] = dt.datetime.now()
 df_data['FileName']      = latest_name_ext
 
 
-#  
-#    ###   #   #  #   #  #   #  #   #     ####   #####
-#   #   #  #   #  #   #  #   #  #  #       #  #  #
-#   #      #   #  #   #  ##  #  # #        #  #  #
-#   #      #####  #   #  # # #  ##         #  #  ####
-#   #      #   #  #   #  #  ##  # #        #  #  #
-#   #   #  #   #  #   #  #   #  #  #       #  #  #
-#    ###   #   #   ###   #   #  #   #     ####   #
-#  
-size = 100000  # chunk row size
-list_df = [df[i:i+size] for i in range(0, df.shape[0], size)]
+#
+#     ###   ####   #     ###  #####     ####   #####
+#    #   #  #   #  #      #     #        #  #  #
+#    #      #   #  #      #     #        #  #  #
+#     ###   ####   #      #     #        #  #  ####
+#        #  #      #      #     #        #  #  #
+#    #   #  #      #      #     #        #  #  #
+#     ###   #      ####  ###    #       ####   #
+#
+#
+size = 100000  # size of splits
+df_list = [df_data[i:i + size] for i in range(0, df_data.shape[0], size)]
 
 
 #
@@ -174,29 +177,16 @@ list_df = [df[i:i+size] for i in range(0, df.shape[0], size)]
 #     #   #   #  #   #  #     #  #    #   #   #
 #    ###  #   #   ###   ####  #   #   #    ###
 #
-# df_data = df_data.head(100000)  # REVIEW:  Comment out this line when testing
+# df_data = df_data.head(100000)
 total_rows_to_insert = len(df_data.index)
 start_time = time.time()  # START TIMER
 
-for i in len(list_df):
+for i, df in enumerate(df_list, start=1):
     # Drop/Replace staging table and insert in one step
-    if i = 0:
-        
+    if i == 1:
+        load_table(df, "replace", 500)
     else:
-        list_df[i].to_sql(dest_tablename,
-                          con=engine,
-                          schema="stage",
-                          if_exists="append",
-                          index=False,
-                          chunksize=500,
-                          method=None,  # Ensures cursor.executemany() is used
-                          )
-        if i = len(list_df):
-            print("{} rows inserted. Another chunk down, {} to go..."
-                  .format(len(list_df[i], len(list_df) - (i+1)
-                  )
-              )
-
+        load_table(df, "append", 500)
 
 end_time = time.time()  # END TIMER
 elapsed_time = round(end_time - start_time, 1)
