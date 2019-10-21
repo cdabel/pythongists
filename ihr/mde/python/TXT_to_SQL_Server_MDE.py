@@ -56,8 +56,8 @@ EXE7ZIP_PATH_STR  = str(EXE7ZIP_PATH.resolve())
 
 
 # SQL ALCHEMY ENGINE
-engine = sqlalchemy.create_engine("mssql+pyodbc:///?odbc_connect={}".format(conn_quoted),
-                                  fast_executemany=True)
+engine = sql.create_engine("mssql+pyodbc:///?odbc_connect={}".format(conn_quoted),
+                           fast_executemany=True)
 
 # Get File
 def get_files(search_pattern):
@@ -74,6 +74,18 @@ def unzip_file(zipname):
     return(system.communicate())
 
 
+def unzip_ifdiff(zip_pattern, txt_pattern):
+    latest_zipfile, latest_zipname_ext = get_files(zip_pattern)
+    latest_txtfile, latest_txtname_ext = get_files(txt_pattern)
+    latest_zip_name, latest_zip_ext    = os.path.splitext(latest_zipname_ext)
+    latest_txt_name, latest_txt_ext    = os.path.splitext(latest_txtname_ext)
+    if latest_txt_name != latest_zip_name:
+        unzip_file(latest_zipfile)
+        return get_files("Master_Extract_Data_Mart_*.txt")
+    else:
+        return latest_txtfile, latest_txtname_ext
+
+
 # Read in worksheets
 def read_in_files(latest_file, latest_file_name_ext):
     latest_file_name, latest_file_extension = os.path.splitext(latest_file_name_ext)
@@ -85,7 +97,7 @@ def read_in_files(latest_file, latest_file_name_ext):
                               sep='|',
                               error_bad_lines=False,
                               warn_bad_lines=True,
-                              # memory_map=True,
+                              memory_map=True,
                               )
         df_data.columns = df_data.columns.str.strip()         # remove whitespace around column names
         df_data = df_data.astype(str)
@@ -118,17 +130,8 @@ def runquery(querystr):
 #   #     #   #   #   #  #   #   #  #   #   #       #       #   #     #
 #   ##### #   #   #   #   #  #   #   ###    #       #      ###  ####  #####
 # 
-latest_zipfile, latest_zipname_ext = get_files("Master_Extract_Data_Mart_*.zip")
-latest_txtfile, latest_txtname_ext = get_files("Master_Extract_Data_Mart_*.txt")
-
-latest_zip_name, latest_zip_ext    = os.path.splitext(latest_zipname_ext)
-latest_txt_name, latest_txt_ext    = os.path.splitext(latest_txtname_ext)
-
-if latest_txt_name != latest_zip_name:
-    unzip_file(latest_zipfile)
-    latest_file, latest_name_ext = get_files("Master_Extract_Data_Mart_*.txt")
-else:
-    latest_file, latest_name_ext = latest_txtfile, latest_txtname_ext
+latest_file, latest_name_ext = unzip_ifdiff("Master_Extract_Data_Mart_*.zip",
+                                            "Master_Extract_Data_Mart_*.txt")
 
 
 #
@@ -140,9 +143,22 @@ else:
 #    #  #  #   #   #   #     #  #        #  #  #
 #   ####    ###   ###  #### ####        ####   #
 #
-df_data, latest_name_ext = read_in_files(latest_file, latest_name_ext)
+df_data                  = read_in_files(latest_file, latest_name_ext)
 df_data['Date_Ingested'] = dt.datetime.now()
 df_data['FileName']      = latest_name_ext
+
+
+#  
+#    ###   #   #  #   #  #   #  #   #         ####   #####
+#   #   #  #   #  #   #  #   #  #  #           #  #  #
+#   #      #   #  #   #  ##  #  # #            #  #  #
+#   #      #####  #   #  # # #  ##             #  #  ####
+#   #      #   #  #   #  #  ##  # #            #  #  #
+#   #   #  #   #  #   #  #   #  #  #           #  #  #
+#    ###   #   #   ###   #   #  #   #         ####   #
+#  
+size = 100000  # chunk row size
+list_df = [df[i:i+size] for i in range(0, df.shape[0], size)]
 
 
 #
@@ -154,19 +170,38 @@ df_data['FileName']      = latest_name_ext
 #     #   #   #  #   #  #    #  #    #   #   #
 #    ###  #   #   ###   #### #   #   #    ###
 #
-df_data = df_data.head(10000)  # REVIEW:  Delete this line after development is complete.
+# df_data = df_data.head(100000)  # REVIEW:  Comment out this line when testing
 total_rows_to_insert = len(df_data.index)
-start_time = time.time()      # START TIMER
+start_time = time.time()  # START TIMER
 
-# Drop/Replace staging table and insert in one step
-qcreate = df_data.to_sql(dest_tablename,
-                         con=engine,
-                         schema="stage",
-                         if_exists="replace",
-                         index=False,
-                         chunksize=1000,
-                         method=None,         # Ensures cursor.executemany() is used
-                         )
+for i in len(list_df):
+    # Drop/Replace staging table and insert in one step
+    if i = 0:
+        list_df[i].to_sql(dest_tablename,
+                          con=engine,
+                          schema="stage",
+                          if_exists="replace",
+                          index=False,
+                          chunksize=500
+                          method=None,  # Ensures cursor.executemany() is used
+                          )
+        print("{} rows inserted." 
+              "One {} chunk down, {} to go..."
+              .format(len(list_df[i], size, len(list_df) - 1))
+    else:
+        list_df[i].to_sql(dest_tablename,
+                          con=engine,
+                          schema="stage",
+                          if_exists="append",
+                          index=False,
+                          chunksize=500
+                          method=None,  # Ensures cursor.executemany() is used
+                          )
+        print("{} rows inserted. One {} chunk down, {} to go..."
+              .format(len(list_df[i], size, len(list_df) - (i+1)
+                     )
+              )
+
 
 end_time = time.time()  # END TIMER
 elapsed_time = round(end_time - start_time, 1)
