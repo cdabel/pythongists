@@ -29,6 +29,7 @@ import sys
 import pyodbc as py
 import time
 import datetime as dt
+import gc
 
 
 dest_odbc_driver    = "{SQL Server Native Client 11.0}"
@@ -114,7 +115,8 @@ def read_in_files(latest_file, latest_file_name_ext):
         return df_data
 
 
-def load_table(i, dataframe, repl_or_app, numrows):
+def load_table(i, dataframe, repl_or_app, numrows, total_inserted):
+    start_splittime = time.time()  # START TIMER
     dataframe.to_sql(dest_tablename,
                      con=engine,
                      schema="stage",
@@ -123,8 +125,16 @@ def load_table(i, dataframe, repl_or_app, numrows):
                      chunksize=numrows,       # Edit here to optimize performance
                      method=None,             # Ensures cursor.executemany() is used
                      )
-    print("{} rows inserted.  |  {} of {} lists loaded."
-          .format(dataframe.shape[0], i, len(df_list)))
+    gc.collect()
+    end_splittime = time.time()  # END TIMER
+    elapsed_splittime = end_splittime - start_splittime
+    print("{} rows inserted  --  {} of {} lists loaded -- {} seconds."
+          .format(dataframe.shape[0],
+                  i,
+                  len(df_list),
+                  round(elapsed_splittime, 1)))
+    total_inserted += dataframe.shape[0]
+    return total_inserted
 
 
 #
@@ -179,18 +189,21 @@ df_list = [df_data[i:i + size] for i in range(0, df_data.shape[0], size)]
 #
 # df_data = df_data.head(100000)
 total_rows_to_insert = len(df_data.index)
+total_inserted = 0
 start_time = time.time()  # START TIMER
 
 for i, df in enumerate(df_list, start=1):
     # Drop/Replace staging table and insert in one step
     if i == 1:
-        load_table(df, "replace", 500)
+        total_inserted = load_table(i, df, "replace", 1000, total_inserted)
+        continue
     else:
-        load_table(df, "append", 500)
+        total_inserted = load_table(i, df, "append", 1000, total_inserted)
+        continue
+
 
 end_time = time.time()  # END TIMER
 elapsed_time = round(end_time - start_time, 1)
-print("MDE's {} INSERTS completed in {} seconds".format(total_rows_to_insert, elapsed_time))
 
 # Get final rowcounts of target table
 conn = py.connect(conn_str)
@@ -200,6 +213,8 @@ rowcount_post = cursor.fetchone()
 rowcount_post = rowcount_post[0]
 cursor.close()
 conn.close()
+
+print("MDE's {} INSERTS completed in {} seconds".format(total_inserted, elapsed_time))
 
 
 #
