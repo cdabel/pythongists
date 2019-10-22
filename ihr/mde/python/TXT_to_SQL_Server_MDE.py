@@ -29,7 +29,7 @@ import sys
 import pyodbc as py
 import time
 import datetime as dt
-import gc
+import multiprocessing
 
 
 dest_odbc_driver    = "{SQL Server Native Client 11.0}"
@@ -96,19 +96,16 @@ def read_in_files(latest_file, latest_file_name_ext):
     start_time = time.time()      # START TIMER
     with open(latest_file, "r", newline='') as file:
         df_data = pd.read_csv(file,
-                              dtype=str,
                               sep='|',
+                              # dtype=str,
+                              na_filter=False,        # Leave empty strings alone (don't convert to Nan)
                               error_bad_lines=False,
                               warn_bad_lines=True,
                               memory_map=True,
                               )
-        df_data.columns = df_data.columns.str.strip()         # remove whitespace around column names
-        df_data = df_data.astype(str)                         # convert everything to strings
-        df_data = df_data.applymap(str.strip)                 # remove whitespace around values
-        # df_enifile = df_enifile.replace('', np.nan)         # map nans, to drop NAs rows and columns later
-        # df_enifile = df_enifile.dropna(how='all', axis=0)   # remove rows containing only NAs
-        # df_enifile = df_enifile.dropna(how='all', axis=1)   # remove columns containing only NAs
-        # df_enifile = df_enifile.replace(np.nan, 'NA')       # turbodbc hates null values...
+        df_data.columns = df_data.columns.str.strip()            # remove whitespace around column names
+        df_data = df_data.apply(pd.to_numeric, errors='ignore')  # convert every int column possible to numeric
+        df_data = df_data.apply(lambda x: x.str.strip() if x.dtype == 'object' else x)  # strip whitespace from 'object'-typed column
         end_time = time.time()  # END TIMER
         elapsed_time = round(end_time - start_time, 1)
         print("Finished in {} seconds".format(elapsed_time))
@@ -125,7 +122,6 @@ def load_table(i, dataframe, repl_or_app, numrows, total_inserted):
                      chunksize=numrows,       # Edit here to optimize performance
                      method=None,             # Ensures cursor.executemany() is used
                      )
-    gc.collect()
     end_splittime = time.time()  # END TIMER
     elapsed_splittime = end_splittime - start_splittime
     print("{} rows inserted  --  {} of {} lists loaded -- {} seconds."
@@ -173,9 +169,11 @@ df_data['FileName']      = latest_name_ext
 #    #   #  #      #      #     #        #  #  #
 #     ###   #      ####  ###    #       ####   #
 #
-#
+# df_data = df_data.head(100000)
+total_rows_to_insert = len(df_data.index)
 size = 100000  # size of splits
 df_list = [df_data[i:i + size] for i in range(0, df_data.shape[0], size)]
+del df_data  # Remove original dataframe now that we have a list of DFs
 
 
 #
@@ -187,8 +185,6 @@ df_list = [df_data[i:i + size] for i in range(0, df_data.shape[0], size)]
 #     #   #   #  #   #  #     #  #    #   #   #
 #    ###  #   #   ###   ####  #   #   #    ###
 #
-# df_data = df_data.head(100000)
-total_rows_to_insert = len(df_data.index)
 total_inserted = 0
 start_time = time.time()  # START TIMER
 
@@ -232,8 +228,7 @@ if (row_diff > 0):
     raise Exception('{} rows failed to insert.'.format(row_diff))
 
 
-print('File imported successfully:\n'
-      ' - {} rows failed to insert.\n'
+print('File imported successfully - {} rows failed to insert.\n'
       .format(row_diff))
 
 # sys.exit(0)  # REVIEW:  Delete this line when ready for Prod.
