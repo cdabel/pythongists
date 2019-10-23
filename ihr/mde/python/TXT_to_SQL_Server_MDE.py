@@ -29,7 +29,6 @@ import sys
 import pyodbc as py
 import time
 import datetime as dt
-import multiprocessing
 
 
 dest_odbc_driver    = "{SQL Server Native Client 11.0}"
@@ -231,4 +230,4 @@ if (row_diff > 0):
 print('File imported successfully - {} rows failed to insert.\n'
       .format(row_diff))
 
-# sys.exit(0)  # REVIEW:  Delete this line when ready for Prod.
+sys.exit(0)  # REVIEW:  Delete this line when ready for Prod.
