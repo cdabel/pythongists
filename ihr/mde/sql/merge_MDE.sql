@@ -20,7 +20,7 @@ GO
 USE IHR_RAP;
 GO
 
-CREATE PROCEDURE [dbo].[merge_mde_sp]
+ALTER PROCEDURE [IHR_RAP].[dbo].[merge_mde_sp]
 AS
 WITH
   cte_source AS
@@ -37,7 +37,7 @@ SELECT
 , CONVERT( VARCHAR(255),  MBR_LST_NM )                      AS MBR_LST_NM
 , CONVERT( VARCHAR(255),  MBR_FST_NM )                      AS MBR_FST_NM
 , CONVERT( VARCHAR(1),    MBR_MIDL_INIT )                   AS MBR_MIDL_INIT
-, CONVERT( DATE, CASE 
+, TRY_CONVERT( DATE, CASE 
                    WHEN MBR_DOB = '' THEN NULL 
                    ELSE MBR_DOB 
                  END )                                      AS MBR_DOB
@@ -172,10 +172,11 @@ SELECT
 , CAST( MSR_RSLT_86    AS BIT )                             AS MSR_RSLT_86
 , CONVERT( VARCHAR(1),    PARTD_ALRT_LVL_86 )               AS PARTD_ALRT_LVL_86
 , CAST( MSR_RSLT_CY_86 AS BIT )                             AS MSR_RSLT_CY_86
-, CONVERT(VARCHAR(19),    Date_Ingested, 120)               AS Load_Date_Py
+, Date_Ingested                                             AS Load_Date_Py
 , 1                                                         AS CountOfFiles
 , CONVERT( VARCHAR(255),  FileName )                        AS FileName
 FROM [IHR_RAP].[stage].[Master_Data_Extract_MnR_Latest]
+WHERE RPT_MO_KEY IS NOT NULL
 )
 /*
      #   #  ####  ####    ###   ####

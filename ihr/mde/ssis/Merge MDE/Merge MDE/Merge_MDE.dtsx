@@ -5,14 +5,14 @@
   DTS:CreationName="Microsoft.Package"
   DTS:CreatorComputerName="APVEP32146"
   DTS:CreatorName="MS\cexp_load"
-  DTS:DTSID="{FD08CF3E-D4F0-4E48-8494-58E914CDC563}"
+  DTS:DTSID="{167E9C77-C62B-4F7B-8328-6521FCDF1025}"
   DTS:ExecutableType="Microsoft.Package"
   DTS:LastModifiedProductVersion="15.0.1300.371"
   DTS:LocaleID="1033"
   DTS:ObjectName="Merge_MDE"
   DTS:PackageType="5"
-  DTS:VersionBuild="5"
-  DTS:VersionGUID="{9ACAD812-2F7C-4899-B416-196FDE6F0725}">
+  DTS:VersionBuild="8"
+  DTS:VersionGUID="{0F6CD4AC-4331-47F4-B18A-903C177860E4}">
   <DTS:Property
     DTS:Name="PackageFormatVersion">8</DTS:Property>
   <DTS:ConnectionManagers>
@@ -23,7 +23,7 @@
       DTS:ObjectName="DBVED36880">
       <DTS:ObjectData>
         <DTS:ConnectionManager
-          DTS:ConnectionString="Data Source=DBVED36880;Integrated Security=SSPI;Connect Timeout=30;" />
+          DTS:ConnectionString="Data Source=DBVED36880;Initial Catalog=IHR_RAP;Integrated Security=True;Connect Timeout=30;Application Name=SSIS-Merge_MDE-{AAE51166-DE59-497F-8F43-6C9A33C2BB41}DBVED36880;" />
       </DTS:ObjectData>
     </DTS:ConnectionManager>
   </DTS:ConnectionManagers>
